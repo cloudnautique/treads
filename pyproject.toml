@@ -11,3 +11,6 @@ dependencies = [
     "openai>=1.79.0",
     "pyyaml>=6.0.2",
 ]
+
+[project.scripts]
+create_agent = "create_agent:main"
