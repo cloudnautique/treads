@@ -25,7 +25,7 @@
             </form>
             <div id="chat-response" style="margin-top:1em; font-size:1.1em; color:#333;">
                 {% if chat_response %}
-                    <strong>Model:</strong> {{ chat_response }}
+                    <strong>Model:</strong> <span id="chat-markdown">{{ chat_response|safe }}</span>
                 {% endif %}
             </div>
         </section>
@@ -39,7 +39,27 @@
             {% endfor %}
             </ul>
         </section>
+        <section>
+            <h2>Available Prompts</h2>
+            <ul>
+            {% for prompt in prompts %}
+                <li style="margin-bottom:1em;">
+                    <form class="prompt-form" onsubmit="return callPrompt(event, '{{ prompt.name }}')">
+                        <strong>{{ prompt.name }}</strong>
+                        {% if prompt.description %}<br><small>{{ prompt.description }}</small>{% endif %}
+                        {% for arg in prompt.arguments %}
+                            <input type="text" name="{{ arg.name }}" placeholder="{{ arg.name }}" {% if arg.required %}required{% endif %} style="margin:0.25em;">
+                        {% endfor %}
+                        <button type="submit">Run</button>
+                    </form>
+                </li>
+            {% else %}
+                <li><em>No prompts found.</em></li>
+            {% endfor %}
+            </ul>
+        </section>
     </main>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
     async function sendChat(event) {
         event.preventDefault();
@@ -52,10 +72,61 @@
             body: JSON.stringify({ prompt })
         });
         const data = await res.json();
-        respDiv.innerHTML = `<strong>Model:</strong> ${data.response}`;
+        // Render markdown
+        respDiv.innerHTML = `<strong>Model:</strong> <span id="chat-markdown"></span>`;
+        document.getElementById('chat-markdown').innerHTML = marked.parse(data.response || '');
         document.getElementById('prompt').value = '';
         return false;
     }
+    async function callPrompt(event, promptName) {
+        event.preventDefault();
+        const form = event.target;
+        const args = {};
+        form.querySelectorAll('input').forEach(i => args[i.name] = i.value.trim());
+        const respDiv = document.getElementById('chat-response');
+        respDiv.innerHTML = '<em>Loading prompt...</em>';
+        const res = await fetch('/prompt_call', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: promptName, arguments: args })
+        });
+        const data = await res.json();
+        if (data.text) {
+            // Instead of displaying, put the prompt text into the chat input for user review/submit
+            document.getElementById('prompt').value = data.text;
+            document.getElementById('prompt').focus();
+            respDiv.innerHTML = '<em>Prompt loaded into chat box. Edit or send!</em>';
+        } else {
+            respDiv.innerHTML = `<span style='color:red;'>Prompt error: ${data.error || 'Unknown error'}</span>`;
+        }
+        return false;
+    }
+    function insertPrompt(promptName) {
+        document.getElementById('prompt').value = promptName + ': ';
+        document.getElementById('prompt').focus();
+    }
+    function fillPrompt(event, promptName) {
+        event.preventDefault();
+        const form = event.target;
+        let promptText = promptName;
+        const inputs = form.querySelectorAll('input');
+        if (inputs.length > 0) {
+            const args = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+            if (args.length > 0) {
+                promptText += ': ' + args.join(', ');
+            }
+        }
+        document.getElementById('prompt').value = promptText;
+        document.getElementById('prompt').focus();
+        return false;
+    }
+    // Render initial chat_response as markdown if present
+    window.addEventListener('DOMContentLoaded', () => {
+        const chatSpan = document.getElementById('chat-markdown');
+        if (chatSpan && chatSpan.textContent) {
+            chatSpan.innerHTML = marked.parse(chatSpan.textContent);
+        }
+    });
     </script>
 </body>
 </html>

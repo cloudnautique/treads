@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, Body
 from fastmcp import Client
-from fastmcp.client.transports import StreamableHttpTransport
+from fastmcp.client.transports import StreamableHttpTransport, StdioTransport
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 import os
@@ -21,6 +21,7 @@ openai.api_key = OPENAI_API_KEY
 
 # Use explicit StreamableHttpTransport for Nanobot MCP server
 mcp_client = Client(StreamableHttpTransport(url=NANOBOT_MCP_URL))
+prompt_mcp_client = Client(StdioTransport(command="uv", args=["run", "prompts.py"]))
 templates = Jinja2Templates(directory="templates")
 
 nanobot_process = None
@@ -28,6 +29,9 @@ nanobot_process = None
 @app.on_event("startup")
 def start_nanobot():
     global nanobot_process
+    # Merge agent configs before starting nanobot
+    import nanobot_template_util
+    nanobot_template_util.merge_all_configs()
     if nanobot_process is None:
         nanobot_process = subprocess.Popen([
             "nanobot", "run", ".", "--listen-address", "127.0.0.1:8099"
@@ -50,6 +54,28 @@ async def chat_view(request: Request):
             print(f"MCP Client is connected? {mcp_client.is_connected()}")
             tools = await mcp_client.list_tools()
             print(f"Tools dump {tools}")
+        # Fetch prompts from prompt MCP server
+        prompts = []
+        try:
+            async with prompt_mcp_client:
+                prompt_objs = await prompt_mcp_client.list_prompts()
+                # Build a list of dicts with name, description, and arguments
+                prompts = [
+                    {
+                        "name": p.name,
+                        "description": getattr(p, "description", ""),
+                        "arguments": [
+                            {
+                                "name": a.name,
+                                "description": getattr(a, "description", ""),
+                                "required": getattr(a, "required", False)
+                            } for a in getattr(p, "arguments", [])
+                        ]
+                    } for p in prompt_objs
+                ]
+            print(f"[DEBUG] Prompts sent to template: {prompts}")
+        except Exception as e:
+            print(f"[WARN] Could not fetch prompts: {e}")
         return templates.TemplateResponse(
             "base.html",
             {
@@ -57,6 +83,7 @@ async def chat_view(request: Request):
                 "message": "Welcome to nano-rails!",
                 "openai_model": OPENAI_MODEL,
                 "tools": [tool.name for tool in tools],
+                "prompts": prompts,
                 "error": None,
                 "chat_response": chat_response,
             }
@@ -70,6 +97,7 @@ async def chat_view(request: Request):
                 "message": "Could not connect to MCP server or list tools.",
                 "openai_model": OPENAI_MODEL,
                 "tools": [],
+                "prompts": [],
                 "error": str(e),
                 "chat_response": chat_response,
             },
@@ -154,3 +182,18 @@ async def get_prompt(name: str):
     async with mcp_client:
         prompt = await mcp_client.get_prompt(name)
     return {"prompt": prompt}
+
+@app.post("/prompt_call")
+async def prompt_call(data: dict = Body(...)):
+    prompt_name = data.get("name")
+    arguments = data.get("arguments", {})
+    try:
+        async with prompt_mcp_client:
+            # Use get_prompt method instead of call
+            result = await prompt_mcp_client.get_prompt(prompt_name, arguments)
+            # result is expected to have 'description' and 'messages'
+            print(f"[DEBUG] Prompt call result: {result}")
+            return {"description": result.description, "messages": result.messages, "text": result.messages[0].content.text}
+    except Exception as e:
+        logging.exception("Prompt call failed")
+        return {"error": str(e)}
