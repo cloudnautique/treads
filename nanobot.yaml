@@ -1,0 +1,9 @@
+publish: 
+  tools: [nanobot]
+
+agents:
+  nanobot:
+    model: gpt-4.1
+    description: "Call this to talk to nanobot."
+    instructions: |-
+      You are a friendly Nanobot assistant who answers questions.
