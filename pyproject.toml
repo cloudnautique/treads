@@ -15,3 +15,6 @@ dependencies = [
 [project.scripts]
 create_agent = "nano_rails.tread_manage:create_agent"
 create_project = "nano_rails.tread_manage:create_project"
+
+[tool.setuptools]
+packages = ["nano_rails"]
