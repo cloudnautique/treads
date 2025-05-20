@@ -13,4 +13,5 @@ dependencies = [
 ]
 
 [project.scripts]
-create_agent = "create_agent:main"
+create_agent = "tread_manage:create_agent"
+create_project = "tread_manage:create_project"
