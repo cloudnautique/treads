@@ -1,0 +1,7 @@
+<ul class="tool-list">
+{% for tool in tools %}
+    <li>{{ tool }}</li>
+{% else %}
+    <li><em>No tools found.</em></li>
+{% endfor %}
+</ul>

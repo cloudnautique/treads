@@ -3,64 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>nano-rails</title>
+    <title>treads</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
+    {% include "_custom_styles.html" %}
 </head>
 <body>
-    <main class="container">
-        <header>
-            <h1>nano-rails</h1>
-            <p class="secondary">A Python framework for LLM apps with MCP & OpenAI</p>
-        </header>
-        {% if error %}
-        <article style="background:#fee; color:#900; border:1px solid #c00; padding:1em;">
-            <strong>Error:</strong> {{ error }}
-        </article>
-        {% endif %}
-        <section>
-            <h2>Chat with {{ openai_model }}</h2>
-            <form id="chat-form" method="post" action="/chat" onsubmit="return sendChat(event)">
-                <input type="text" name="prompt" id="prompt" placeholder="Say something..." required style="width:80%">
-                <button type="submit">Send</button>
-            </form>
-            <div id="chat-response" style="margin-top:1em; font-size:1.1em; color:#333;">
-                {% if chat_response %}
-                    <strong>Model:</strong> <span id="chat-markdown">{{ chat_response|safe }}</span>
-                {% endif %}
-            </div>
-        </section>
-        <section>
-            <h2>Available Tools</h2>
-            <ul>
-            {% for tool in tools %}
-                <li>{{ tool }}</li>
-            {% else %}
-                <li><em>No tools found.</em></li>
-            {% endfor %}
-            </ul>
-        </section>
-        <section>
-            <h2>Available Prompts</h2>
-            <ul>
-            {% for prompt in prompts %}
-                <li style="margin-bottom:1em;">
-                    <form class="prompt-form" onsubmit="return callPrompt(event, '{{ prompt.name }}')">
-                        <strong>{{ prompt.name }}</strong>
-                        {% if prompt.description %}<br><small>{{ prompt.description }}</small>{% endif %}
-                        {% for arg in prompt.arguments %}
-                            <input type="text" name="{{ arg.name }}" placeholder="{{ arg.name }}" {% if arg.required %}required{% endif %} style="margin:0.25em;">
-                        {% endfor %}
-                        <button type="submit">Run</button>
-                    </form>
-                </li>
-            {% else %}
-                <li><em>No prompts found.</em></li>
-            {% endfor %}
-            </ul>
+    <main class="container layout">
+        <aside class="sidebar">
+            <h3 style="margin-top:0;">Available Tools</h3>
+            {% include "_tools_list.html" %}
+        </aside>
+        <section class="main-content">
+            {% block content %}
+            <header>
+                <h1>treads</h1>
+                <p class="secondary">A Python framework for LLM apps with MCP & OpenAI</p>
+            </header>
+            {% if error %}
+            <article style="background:#fee; color:#900; border:1px solid #c00; padding:1em;">
+                <strong>Error:</strong> {{ error }}
+            </article>
+            {% endif %}
+            <section>
+                {% include "_chat_box.html" %}
+            </section>
+            <section>
+                <h2>Available Prompts</h2>
+                {% include "_prompts_list.html" %}
+            </section>
+            {% endblock %}
         </section>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    {% block scripts %}
     <script>
+    document.getElementById('prompt')?.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('chat-form').dispatchEvent(new Event('submit', {cancelable:true, bubbles:true}));
+        }
+    });
     async function sendChat(event) {
         event.preventDefault();
         const prompt = document.getElementById('prompt').value;
@@ -128,5 +110,6 @@
         }
     });
     </script>
+    {% endblock %}
 </body>
 </html>

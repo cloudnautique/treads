@@ -29,13 +29,10 @@ def create_project():
     copy_template_dir(TEMPLATE_DIR, root)
     # Always create an empty agents directory if it doesn't exist
     (root / "agents").mkdir(parents=True, exist_ok=True)
-    print(f"nano-rails project '{project}' scaffolded from {TEMPLATE_DIR}.")
+    print(f"treads project '{project}' scaffolded from {TEMPLATE_DIR}.")
 
 # Use the agents directory in the current working directory (the user's project)
 AGENTS_DIR = Path.cwd() / "agents"
-NANOBOT_YAML_TEMPLATE = """publish:\n  tools: [{{name}}]\n\nagents:\n  {{name}}:\n    model: gpt-4.1\n    instructions: |-\n      You are a {{name}} agent. Describe what you do here.\n    tools: [{{name}}_tools]\n\nmcpServers:\n  {{name}}_tools:\n    command: \"uv\"\n    args:\n    - \"run\"\n    - \"tools.py\"\n"""
-TOOLS_PY_TEMPLATE = """from fastmcp import FastMCP\n\nmcp = FastMCP(name=\"{{name}}\")\n\n@mcp.tool()\ndef {{name}}(text: str) -> str:\n    '''Describe what this tool does.'''\n    return f\"{{name}} tool called with: {{text}} (stub)\"\n\nif __name__ == \"__main__\":\n    mcp.run()\n"""
-PROMPT_PY_TEMPLATE = """from fastmcp import FastMCP\n\ndef register_prompts(mcp: FastMCP):\n    @mcp.prompt()\n    def {{name}}_prompt(text: str) -> str:\n        '''Describe what this prompt does.'''\n        return f\"Prompt for {{name}}: {{text}} (stub)\"\n"""
 def create_agent():
     if len(sys.argv) < 2:
         print("Usage: create_agent [AGENT_NAME]")

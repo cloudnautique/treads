@@ -1,5 +1,5 @@
 publish: 
-  tools: [nanobot]
+  entrypoint: nanobot
 
 agents:
   nanobot:

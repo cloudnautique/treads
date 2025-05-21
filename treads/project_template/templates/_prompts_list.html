@@ -1,0 +1,16 @@
+{% for prompt in prompts %}
+<div class="prompt-card">
+    <form class="prompt-form" onsubmit="return callPrompt(event, '{{ prompt.name }}')">
+        <strong>{{ prompt.name }}</strong>
+        {% if prompt.description %}<br><small>{{ prompt.description }}</small>{% endif %}
+        <div class="prompt-args">
+        {% for arg in prompt.arguments %}
+            <input type="text" name="{{ arg.name }}" placeholder="{{ arg.name }}" {% if arg.required %}required{% endif %}>
+        {% endfor %}
+        </div>
+        <button type="submit">Run</button>
+    </form>
+</div>
+{% else %}
+<div><em>No prompts found.</em></div>
+{% endfor %}

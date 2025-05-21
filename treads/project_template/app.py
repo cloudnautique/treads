@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, Body
 from fastmcp import Client
-from fastmcp.client.transports import StreamableHttpTransport, StdioTransport
+from fastmcp.client.transports import StreamableHttpTransport
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 import os
@@ -9,8 +9,9 @@ import subprocess
 import signal
 import logging
 from fastapi import status
-
-app = FastAPI()
+from contextlib import asynccontextmanager
+import time
+import httpx
 
 # Configuration (could be loaded from a config file or env)
 NANOBOT_MCP_URL = os.environ.get("NANOBOT_MCP_URL", "http://localhost:8099/mcp")
@@ -21,66 +22,65 @@ openai.api_key = OPENAI_API_KEY
 
 # Use explicit StreamableHttpTransport for Nanobot MCP server
 mcp_client = Client(StreamableHttpTransport(url=NANOBOT_MCP_URL))
-prompt_mcp_client = Client(StdioTransport(command="uv", args=["run", "prompts.py"]))
 templates = Jinja2Templates(directory="templates")
 
 nanobot_process = None
 
-@app.on_event("startup")
-def start_nanobot():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     global nanobot_process
-    # Merge agent configs before starting nanobot
+    # Startup logic
     import nanobot_template_util
     nanobot_template_util.merge_all_configs()
     if nanobot_process is None:
         nanobot_process = subprocess.Popen([
-            "nanobot", "run", ".", "--listen-address", "127.0.0.1:8099"
+            "nanobot", "run", ".", "--mcp", "--listen-address", "127.0.0.1:8099"
         ])
+    try:
+        yield
+    finally:
+        # Shutdown logic
+        if nanobot_process is not None:
+            nanobot_process.send_signal(signal.SIGINT)
+            nanobot_process.wait()
+            nanobot_process = None
 
-@app.on_event("shutdown")
-def stop_nanobot():
-    global nanobot_process
-    if nanobot_process is not None:
-        nanobot_process.send_signal(signal.SIGINT)
-        nanobot_process.wait()
-        nanobot_process = None
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/", response_class=HTMLResponse)
 async def chat_view(request: Request):
     chat_response = request.query_params.get("chat_response")
     try:
         print(f"MCP Client is connected? {mcp_client.is_connected()}")
+        # Fetch tools
         async with mcp_client:
             print(f"MCP Client is connected? {mcp_client.is_connected()}")
             tools = await mcp_client.list_tools()
             print(f"Tools dump {tools}")
-        # Fetch prompts from prompt MCP server
-        prompts = []
-        try:
-            async with prompt_mcp_client:
-                prompt_objs = await prompt_mcp_client.list_prompts()
-                # Build a list of dicts with name, description, and arguments
-                prompts = [
-                    {
-                        "name": p.name,
-                        "description": getattr(p, "description", ""),
-                        "arguments": [
-                            {
-                                "name": a.name,
-                                "description": getattr(a, "description", ""),
-                                "required": getattr(a, "required", False)
-                            } for a in getattr(p, "arguments", [])
-                        ]
-                    } for p in prompt_objs
-                ]
+        # Fetch prompts
+
+            print(f"MCP Client is connected? {mcp_client.is_connected()}")
+            print(f"MCP Client is connected? {mcp_client.is_connected()}")
+            prompt_objs = await mcp_client.list_prompts()
+            prompts = [
+               {
+                   "name": p.name,
+                   "description": getattr(p, "description", ""),
+                   "arguments": [
+                       {
+                           "name": a.name,
+                           "description": getattr(a, "description", ""),
+                           "required": getattr(a, "required", False)
+                       } for a in getattr(p, "arguments", [])
+                   ]
+               } for p in prompt_objs
+            ]
             print(f"[DEBUG] Prompts sent to template: {prompts}")
-        except Exception as e:
-            print(f"[WARN] Could not fetch prompts: {e}")
         return templates.TemplateResponse(
             "base.html",
             {
                 "request": request,
-                "message": "Welcome to nano-rails!",
+                "message": "Welcome to treads!",
                 "openai_model": OPENAI_MODEL,
                 "tools": [tool.name for tool in tools],
                 "prompts": prompts,
@@ -188,9 +188,9 @@ async def prompt_call(data: dict = Body(...)):
     prompt_name = data.get("name")
     arguments = data.get("arguments", {})
     try:
-        async with prompt_mcp_client:
+        async with mcp_client:
             # Use get_prompt method instead of call
-            result = await prompt_mcp_client.get_prompt(prompt_name, arguments)
+            result = await mcp_client.get_prompt(prompt_name, arguments)
             # result is expected to have 'description' and 'messages'
             print(f"[DEBUG] Prompt call result: {result}")
             return {"description": result.description, "messages": result.messages, "text": result.messages[0].content.text}

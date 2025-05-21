@@ -1,4 +1,4 @@
-# nano-rails
+# treads
 
 A Python framework for building LLM applications with MCP and OpenAI, inspired by Rails/Django.
 
