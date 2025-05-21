@@ -18,12 +18,3 @@ create_project = "nano_rails.tread_manage:create_project"
 
 [tool.setuptools]
 packages = ["nano_rails"]
-include-package-data = true
-
-[tool.setuptools.package-data]
-nano_rails = [
-    "project_template/*",
-    "project_template/**/*",
-    "agent_template/*",
-    "agent_template/**/*"
-]
