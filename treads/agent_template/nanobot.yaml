@@ -1,0 +1,17 @@
+publish:
+  tools: [{name}]
+  prompts: [{name}_tools]
+
+agents:
+  {name}:
+    model: gpt-4.1
+    instructions: |-
+      You are a {name} agent. Describe what you do here.
+    tools: [{name}_tools]
+
+mcpServers:
+  {name}_tools:
+    command: "uv"
+    args:
+    - "run"
+    - "tools.py"

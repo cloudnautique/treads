@@ -11,10 +11,3 @@ dependencies = [
     "openai>=1.79.0",
     "pyyaml>=6.0.2",
 ]
-
-[project.scripts]
-create_agent = "nano_rails.tread_manage:create_agent"
-create_project = "nano_rails.tread_manage:create_project"
-
-[tool.setuptools]
-packages = ["nano_rails"]
