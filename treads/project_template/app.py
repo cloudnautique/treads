@@ -3,6 +3,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import os
 import openai
 import subprocess
@@ -46,6 +47,9 @@ async def lifespan(app: FastAPI):
             nanobot_process = None
 
 app = FastAPI(lifespan=lifespan)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def chat_view(request: Request):
