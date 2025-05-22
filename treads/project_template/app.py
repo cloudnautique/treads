@@ -127,6 +127,21 @@ async def chat_post(data: dict = Body(...)):
     except Exception as e:
         logging.warning(f"Could not fetch tools for chat: {e}")
     print(f"[DEBUG] Final tools list sent to OpenAI: {tools}")
+    # Insert system message/instructions at the start of the messages list
+    system_message = {
+        "role": "system",
+        "content": (
+            "You are a helpful AI agent broker. Strictly follow these instructions."
+            "<instructions>"
+            "Determine the best Tool to service the user's request."
+            "Call the tool with the minimal amount of changes from the users request."
+            "Do not summarize the results from the tool call any further."
+            "Do not add additional information to the tool results"
+            "</instructions>"
+        )
+    }
+    if not messages or messages[0].get("role") != "system":
+        messages = [system_message] + messages
     # Call OpenAI with tools if any
     if tools:
         response = openai.chat.completions.create(
