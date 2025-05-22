@@ -1,5 +1,6 @@
+<ul class="prompts-list" style="background: var(--background-panel); border-radius: 10px; border: 1px solid var(--border); padding: 1rem; list-style: none; margin: 0;">
 {% for prompt in prompts %}
-<div class="prompt-card">
+<li class="prompt-card">
     <form class="prompt-form" onsubmit="return callPrompt(event, '{{ prompt.name }}')">
         <strong>{{ prompt.name }}</strong>
         {% if prompt.description %}<br><small>{{ prompt.description }}</small>{% endif %}
@@ -10,7 +11,8 @@
         </div>
         <button type="submit">Run</button>
     </form>
-</div>
+</li>
 {% else %}
 <div><em>No prompts found.</em></div>
 {% endfor %}
+</ul>

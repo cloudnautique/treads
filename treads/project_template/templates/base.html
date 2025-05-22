@@ -8,7 +8,8 @@
     {% include "_custom_styles.html" %}
 </head>
 <body>
-    <main class="container layout">
+  <div class="container" style="background: var(--background-main); min-height: 100vh;">
+    <main class="layout">
         <aside class="sidebar">
             <h3 style="margin-top:0;">Available Tools</h3>
             {% include "_tools_list.html" %}
@@ -34,6 +35,7 @@
             {% endblock %}
         </section>
     </main>
+  </div>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     {% block scripts %}
     <script>

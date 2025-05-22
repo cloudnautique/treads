@@ -1,4 +1,92 @@
 <style>
+    :root {
+  --background-main: #181c23;
+  --background-panel: #232733;
+  --background-card: #232733;
+  --text-main: #e0e6ef;
+  --text-secondary: #a0aec0;
+  --accent: #2dd4bf;
+  --accent-hover: #22bfa3;
+  --border: #31364a;
+  --button-bg: #232733;
+  --button-bg-hover: #2dd4bf;
+  --button-text: #e0e6ef;
+  --input-bg: #2a2f3a; /* lighter than panel, for input fields */
+  --input-border: #31364a;
+  --input-text: #e0e6ef;
+  --status-connected: #2dd4bf;
+  --status-disconnected: #ef4444;
+}
+
+body {
+  background: var(--background-main);
+  color: var(--text-main);
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  margin: 0;
+}
+
+.panel, .card, .container {
+  background: var(--background-panel);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-main);
+}
+
+label, .label {
+  color: var(--text-secondary);
+}
+
+input, select, textarea {
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+button, .button {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.5rem 1.5rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+button:hover, .button:hover {
+  background: var(--button-bg-hover);
+  color: #181c23;
+}
+
+.status-connected {
+  color: var(--status-connected);
+}
+
+.status-disconnected {
+  color: var(--status-disconnected);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  background: var(--background-panel);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
     .layout {
         display: flex;
         gap: 2em;
@@ -6,10 +94,10 @@
     .sidebar {
         min-width: 220px;
         max-width: 260px;
-        background: #f6f6f6;
+        background: #232733; /* match --background-panel */
         border-radius: 8px;
         padding: 1em 1em 1em 1.5em;
-        border: 1px solid #eee;
+        border: 1px solid var(--border);
         height: 100vh;
         position: sticky;
         top: 0;
@@ -24,14 +112,14 @@
     .tool-list li {
         margin-bottom: 0.5em;
         font-weight: 500;
-        color: #2d3a4a;
+        color: var(--text-main);
     }
     .prompt-card {
-        border: 1px solid #e0e0e0;
+        border: 1px solid var(--border);
         border-radius: 8px;
         padding: 1em;
         margin-bottom: 1.5em;
-        background: #fafbfc;
+        background: #232733; /* match --background-panel */
     }
     .prompt-card strong {
         font-size: 1.1em;
@@ -44,4 +132,23 @@
         margin-right: 0.5em;
         margin-bottom: 0.3em;
     }
+    .prompts-list {
+  list-style: none !important;
+  padding: 0;
+  margin: 0;
+}
+.prompts-list > li {
+  list-style: none !important;
+}
+
+/* Ensure all input fields use the same lighter background */
+input[type="text"], textarea, select {
+  background: var(--input-bg) !important;
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: none;
+}
 </style>
