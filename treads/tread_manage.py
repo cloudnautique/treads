@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import shutil
+import subprocess
 
 TEMPLATE_DIR = Path(__file__).parent / "project_template"
 
@@ -72,6 +73,11 @@ def create_agent():
     print(f"Agent '{agent}' created in {agent_dir}")
 
 
+def dev():
+    """Run uvicorn app:app --reload for development server."""
+    subprocess.run(["uvicorn", "app:app", "--reload"])
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "create_project":
         sys.argv.pop(1)
@@ -79,6 +85,9 @@ if __name__ == "__main__":
     elif len(sys.argv) > 1 and sys.argv[1] == "create_agent":
         sys.argv.pop(1)
         create_agent()
+    elif len(sys.argv) > 1 and sys.argv[1] == "dev":
+        sys.argv.pop(1)
+        dev()
     else:
-        print("Usage: tread_manage.py [create_project|create_agent] [NAME]")
+        print("Usage: tread_manage.py [create_project|create_agent|dev] [NAME]")
         sys.exit(1)

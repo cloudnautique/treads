@@ -15,6 +15,7 @@ dependencies = [
 [project.scripts]
 create_agent = "treads.tread_manage:create_agent"
 create_project = "treads.tread_manage:create_project"
+dev = "treads.tread_manage:dev"
 
 [tool.setuptools]
 packages = ["treads"]
@@ -25,5 +26,5 @@ treads = [
     "project_template/*",
     "project_template/**/*",
     "agent_template/*",
-    "agent_template/**/*"
+    "agent_template/**/*",
 ]
