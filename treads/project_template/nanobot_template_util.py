@@ -28,7 +28,7 @@ def adjust_mcp_paths(agent_name, mcp_servers):
     return mcp_servers
 
 def merge_nanobot_yamls():
-    merged = {"publish": {"tools": [], "prompts": []}, "agents": {}, "mcpServers": {}}
+    merged = {"publish": {"tools": [], "prompts": [], "resources": []}, "agents": {}, "mcpServers": {}}
     # Load global config if exists
     if GLOBAL_YAML.exists():
         global_yaml = load_yaml(GLOBAL_YAML)
@@ -36,11 +36,13 @@ def merge_nanobot_yamls():
             if k in global_yaml:
                 if isinstance(global_yaml[k], dict):
                     if k == "publish":
-                        # Merge both tools and prompts
+                        # Merge tools, prompts, and resources
                         if "tools" in global_yaml[k]:
                             merged["publish"]["tools"].extend(global_yaml[k]["tools"])
                         if "prompts" in global_yaml[k]:
                             merged["publish"]["prompts"].extend(global_yaml[k]["prompts"])
+                        if "resources" in global_yaml[k]:
+                            merged["publish"]["resources"].extend(global_yaml[k]["resources"])
                     else:
                         merged[k].update(global_yaml[k])
                 elif isinstance(global_yaml[k], list):
@@ -56,12 +58,14 @@ def merge_nanobot_yamls():
         if not agent_yaml_path.exists():
             continue
         agent_yaml = load_yaml(agent_yaml_path)
-        # Merge publish tools and prompts
+        # Merge publish tools, prompts, and resources
         if "publish" in agent_yaml:
             if "tools" in agent_yaml["publish"]:
                 merged["publish"]["tools"].extend(agent_yaml["publish"]["tools"])
             if "prompts" in agent_yaml["publish"]:
                 merged["publish"]["prompts"].extend(agent_yaml["publish"]["prompts"])
+            if "resources" in agent_yaml["publish"]:
+                merged["publish"]["resources"].extend(agent_yaml["publish"]["resources"])
         # Merge agents
         if "agents" in agent_yaml:
             merged["agents"].update(agent_yaml["agents"])
@@ -89,6 +93,8 @@ def merge_nanobot_yamls():
                 seen.add(template_str)
                 unique_prompts.append(template_str)
     merged["publish"]["prompts"] = unique_prompts
+    # Remove duplicates in publish.resources
+    merged["publish"]["resources"] = list(sorted(set(merged["publish"].get("resources", []))))
     # Merge publish.entrypoint (str, prefer agent value, fallback to global, else None)
     entrypoint = None
     # Check all agent yamls for entrypoint, last one wins

@@ -1,6 +1,7 @@
 publish:
   tools: [{name}]
   prompts: [{name}_tools]
+  resources: [{name}_tools]
 
 agents:
   {name}:

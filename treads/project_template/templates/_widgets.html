@@ -1,0 +1,15 @@
+{# templates/_widgets.html #}
+{% if widgets %}
+  <section id="widgets-section">
+    <h2>Widgets</h2>
+    {% for widget in widgets %}
+      {% if widget['content']['type'] == 'html' %}
+        <div class="widget" data-widget-uri="{{ widget.get('uri', '') }}">
+          {{ widget['content']['htmlString'] | safe }}
+        </div>
+      {% else %}
+        <div class="widget-unknown">Unknown widget type</div>
+      {% endif %}
+    {% endfor %}
+  </section>
+{% endif %}

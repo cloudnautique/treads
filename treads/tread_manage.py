@@ -24,15 +24,37 @@ def create_project():
     project = sys.argv[1]
     root = Path(project)
     if not TEMPLATE_DIR.exists():
-        print(f"Template directory {TEMPLATE_DIR} not found. Please ensure project_template/ exists in the package and is included as package data.")
+        print(
+            f"Template directory {TEMPLATE_DIR} not found. Please ensure project_template/ exists in the package and is included as package data."
+        )
         sys.exit(1)
     copy_template_dir(TEMPLATE_DIR, root)
-    # Always create an empty agents directory if it doesn't exist
-    (root / "agents").mkdir(parents=True, exist_ok=True)
+
+    dirs = ["agents", "static"]
+    for d in dirs:
+        (root / d).mkdir(parents=True, exist_ok=True)
     print(f"treads project '{project}' scaffolded from {TEMPLATE_DIR}.")
+
 
 # Use the agents directory in the current working directory (the user's project)
 AGENTS_DIR = Path.cwd() / "agents"
+
+
+def copy_agent_template_dir(src, dst, agent_name):
+    """Recursively copy agent template directory from src to dst, substituting {name}."""
+    for item in src.iterdir():
+        dest_item = dst / item.name
+        if item.is_dir():
+            dest_item.mkdir(parents=True, exist_ok=True)
+            copy_agent_template_dir(item, dest_item, agent_name)
+        else:
+            dest_item.parent.mkdir(parents=True, exist_ok=True)
+            with open(item, "r") as f:
+                content = f.read().replace("{name}", agent_name)
+            with open(dest_item, "w") as out:
+                out.write(content)
+
+
 def create_agent():
     if len(sys.argv) < 2:
         print("Usage: create_agent [AGENT_NAME]")
@@ -40,18 +62,15 @@ def create_agent():
     agent = sys.argv[1]
     agent_dir = AGENTS_DIR / agent
     agent_dir.mkdir(parents=True, exist_ok=True)
-    # Copy and substitute from agent_template
     agent_template_dir = Path(__file__).parent / "agent_template"
     if not agent_template_dir.exists():
-        print(f"Agent template directory {agent_template_dir} not found. Please ensure agent_template/ exists in the package and is included as package data.")
+        print(
+            f"Agent template directory {agent_template_dir} not found. Please ensure agent_template/ exists in the package and is included as package data."
+        )
         sys.exit(1)
-    for template_file in agent_template_dir.iterdir():
-        if template_file.is_file():
-            with open(template_file, "r") as f:
-                content = f.read().replace("{name}", agent)
-            with open(agent_dir / template_file.name, "w") as out:
-                out.write(content)
+    copy_agent_template_dir(agent_template_dir, agent_dir, agent)
     print(f"Agent '{agent}' created in {agent_dir}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "create_project":

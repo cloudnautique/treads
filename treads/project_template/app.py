@@ -13,6 +13,7 @@ from fastapi import status
 from contextlib import asynccontextmanager
 import time
 import httpx
+import json
 
 # Configuration (could be loaded from a config file or env)
 NANOBOT_MCP_URL = os.environ.get("NANOBOT_MCP_URL", "http://localhost:8099/mcp")
@@ -27,16 +28,18 @@ templates = Jinja2Templates(directory="templates")
 
 nanobot_process = None
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global nanobot_process
     # Startup logic
     import nanobot_template_util
+
     nanobot_template_util.merge_all_configs()
     if nanobot_process is None:
-        nanobot_process = subprocess.Popen([
-            "nanobot", "run", ".", "--mcp", "--listen-address", "127.0.0.1:8099"
-        ])
+        nanobot_process = subprocess.Popen(
+            ["nanobot", "run", ".", "--mcp", "--listen-address", "127.0.0.1:8099"]
+        )
     try:
         yield
     finally:
@@ -46,14 +49,17 @@ async def lifespan(app: FastAPI):
             nanobot_process.wait()
             nanobot_process = None
 
+
 app = FastAPI(lifespan=lifespan)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
 @app.get("/", response_class=HTMLResponse)
 async def chat_view(request: Request):
     chat_response = request.query_params.get("chat_response")
+    widgets = []
     try:
         print(f"MCP Client is connected? {mcp_client.is_connected()}")
         # Fetch tools
@@ -61,25 +67,61 @@ async def chat_view(request: Request):
             print(f"MCP Client is connected? {mcp_client.is_connected()}")
             tools = await mcp_client.list_tools()
             print(f"Tools dump {tools}")
-        # Fetch prompts
+            # Fetch prompts
 
             print(f"MCP Client is connected? {mcp_client.is_connected()}")
             print(f"MCP Client is connected? {mcp_client.is_connected()}")
             prompt_objs = await mcp_client.list_prompts()
             prompts = [
-               {
-                   "name": p.name,
-                   "description": getattr(p, "description", ""),
-                   "arguments": [
-                       {
-                           "name": a.name,
-                           "description": getattr(a, "description", ""),
-                           "required": getattr(a, "required", False)
-                       } for a in getattr(p, "arguments", [])
-                   ]
-               } for p in prompt_objs
+                {
+                    "name": p.name,
+                    "description": getattr(p, "description", ""),
+                    "arguments": [
+                        {
+                            "name": a.name,
+                            "description": getattr(a, "description", ""),
+                            "required": getattr(a, "required", False),
+                        }
+                        for a in getattr(p, "arguments", [])
+                    ],
+                }
+                for p in prompt_objs
             ]
             print(f"[DEBUG] Prompts sent to template: {prompts}")
+
+        # Fetch widget resources
+        async with mcp_client:
+            resources = await mcp_client.list_resources()
+            widget_uris = [
+                str(r.uri) for r in resources if str(r.uri).startswith("html://widget/")
+            ]
+            for uri in widget_uris:
+                try:
+                    widget = await mcp_client.read_resource(uri)
+                    print(f"[DEBUG] Raw widget response for {uri}: {widget}")
+                    # If widget is a list, extract the first element
+                    if isinstance(widget, list) and widget:
+                        widget = widget[0]
+                    # If widget has 'text', parse it as JSON
+                    if hasattr(widget, "text"):
+                        try:
+                            widget_data = json.loads(widget.text)
+                            widget_data["uri"] = uri
+                            widgets.append(widget_data)
+                        except Exception as e:
+                            print(f"[DEBUG] Failed to parse widget text for {uri}: {e}")
+                    elif isinstance(widget, dict) and "text" in widget:
+                        try:
+                            widget_data = json.loads(widget["text"])
+                            widget_data["uri"] = uri
+                            widgets.append(widget_data)
+                        except Exception as e:
+                            print(f"[DEBUG] Failed to parse widget text for {uri}: {e}")
+                    else:
+                        widgets.append(widget)
+                except Exception as e:
+                    print(f"[DEBUG] Failed to load widget {uri}: {e}")
+
         return templates.TemplateResponse(
             "base.html",
             {
@@ -90,7 +132,8 @@ async def chat_view(request: Request):
                 "prompts": prompts,
                 "error": None,
                 "chat_response": chat_response,
-            }
+                "widgets": widgets,
+            },
         )
     except Exception as e:
         logging.exception("Failed to connect to MCP server or list tools")
@@ -104,9 +147,11 @@ async def chat_view(request: Request):
                 "prompts": [],
                 "error": str(e),
                 "chat_response": chat_response,
+                "widgets": [],
             },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
 
 @app.post("/chat")
 async def chat_post(data: dict = Body(...)):
@@ -123,8 +168,8 @@ async def chat_post(data: dict = Body(...)):
                     "function": {
                         "name": t.name,
                         "description": getattr(t, "description", ""),
-                        "parameters": getattr(t, "inputSchema", {}) or {}
-                    }
+                        "parameters": getattr(t, "inputSchema", {}) or {},
+                    },
                 }
                 print(f"[DEBUG] Tool payload for OpenAI: {tool_payload}")
                 tools.append(tool_payload)
@@ -142,23 +187,17 @@ async def chat_post(data: dict = Body(...)):
             "Do not summarize the results from the tool call any further."
             "Do not add additional information to the tool results"
             "</instructions>"
-        )
+        ),
     }
     if not messages or messages[0].get("role") != "system":
         messages = [system_message] + messages
     # Call OpenAI with tools if any
     if tools:
         response = openai.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=messages,
-            tools=tools,
-            tool_choice="auto"
+            model=OPENAI_MODEL, messages=messages, tools=tools, tool_choice="auto"
         )
     else:
-        response = openai.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=messages
-        )
+        response = openai.chat.completions.create(model=OPENAI_MODEL, messages=messages)
     print(f"[DEBUG] OpenAI response: {response}")
     choice = response.choices[0]
     # Check for tool calls in the response
@@ -167,16 +206,18 @@ async def chat_post(data: dict = Body(...)):
         tool_call = choice.message.tool_calls[0]
         tool_name = tool_call.function.name
         import json
+
         tool_args = json.loads(tool_call.function.arguments)
         print(f"[DEBUG] Forwarding tool call to MCP: {tool_name}({tool_args})")
         async with mcp_client:
             mcp_result = await mcp_client.call_tool(tool_name, tool_args)
             print(f"[DEBUG] MCP tool result: {mcp_result}")
         # Extract text from TextContent if present
-        if mcp_result and hasattr(mcp_result[0], 'text'):
+        if mcp_result and hasattr(mcp_result[0], "text"):
             return {"response": mcp_result[0].text}
         return {"response": str(mcp_result)}
     return {"response": choice.message.content}
+
 
 @app.get("/prompts")
 async def list_prompts():
@@ -184,11 +225,13 @@ async def list_prompts():
         prompts = await mcp_client.list_prompts()
     return {"prompts": [p.name for p in prompts]}
 
+
 @app.get("/resources")
 async def list_resources():
     async with mcp_client:
         resources = await mcp_client.list_resources()
     return {"resources": [str(r.uri) for r in resources]}
+
 
 @app.get("/resource/{uri:path}")
 async def get_resource(uri: str):
@@ -196,11 +239,13 @@ async def get_resource(uri: str):
         result = await mcp_client.read_resource(uri)
     return {"resource": result}
 
+
 @app.get("/prompt/{name}")
 async def get_prompt(name: str):
     async with mcp_client:
         prompt = await mcp_client.get_prompt(name)
     return {"prompt": prompt}
+
 
 @app.post("/prompt_call")
 async def prompt_call(data: dict = Body(...)):
@@ -212,7 +257,11 @@ async def prompt_call(data: dict = Body(...)):
             result = await mcp_client.get_prompt(prompt_name, arguments)
             # result is expected to have 'description' and 'messages'
             print(f"[DEBUG] Prompt call result: {result}")
-            return {"description": result.description, "messages": result.messages, "text": result.messages[0].content.text}
+            return {
+                "description": result.description,
+                "messages": result.messages,
+                "text": result.messages[0].content.text,
+            }
     except Exception as e:
         logging.exception("Prompt call failed")
         return {"error": str(e)}
