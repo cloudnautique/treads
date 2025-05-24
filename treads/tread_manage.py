@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import shutil
 import subprocess
+import os
 
 TEMPLATE_DIR = Path(__file__).parent / "project_template"
 
@@ -34,7 +35,33 @@ def create_project():
     dirs = ["agents", "static"]
     for d in dirs:
         (root / d).mkdir(parents=True, exist_ok=True)
+    # Correctly create the 'app' agent as a child of the project directory
+    prev_cwd = Path.cwd()
+    try:
+        os.chdir(root)
+        print(f"Creating agent 'app' in {root}")
+        print(f"Current working directory: {os.getcwd()}")
+        create_agent_with_name("app")
+    finally:
+        os.chdir(prev_cwd)
     print(f"treads project '{project}' scaffolded from {TEMPLATE_DIR}.")
+
+
+def create_agent_with_name(agent_name):
+    agent_dir = Path.cwd() / "agents" / agent_name
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    # Use dedicated template for 'app' agent
+    if agent_name == "app":
+        agent_template_dir = Path(__file__).parent / "app_agent_template"
+    else:
+        agent_template_dir = Path(__file__).parent / "agent_template"
+    if not agent_template_dir.exists():
+        print(
+            f"Agent template directory {agent_template_dir} not found. Please ensure it exists in the package and is included as package data."
+        )
+        sys.exit(1)
+    copy_agent_template_dir(agent_template_dir, agent_dir, agent_name)
+    print(f"Agent '{agent_name}' created in {agent_dir}")
 
 
 # Use the agents directory in the current working directory (the user's project)
