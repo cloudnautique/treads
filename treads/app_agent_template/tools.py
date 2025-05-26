@@ -1,10 +1,12 @@
 import sys
 from pathlib import Path
+from fastmcp import FastMCP, Context
+from mcp.types import TextContent
 
+# ToDo - can this be done at the module level?
 sys.path.insert(0, str(Path(__file__).parent))
 from prompts import register_prompts
 from resources import register_resources
-from fastmcp import FastMCP
 
 AGENT_NAME = "app_tools"
 
@@ -14,10 +16,13 @@ register_resources(mcp)
 
 
 @mcp.tool()
-def agent_tool(text: str) -> str:
-    """Describe what this tool does."""
-    return f"{AGENT_NAME} tool called with: {text} (stub)"
+def chat(prompt: str, ctx: Context) -> str:
+    """This tool chats with the App Agent."""
+    result = ctx.sample(prompt)
 
+    assert isinstance(result, TextContent)
+    return result.text
+    
 
 if __name__ == "__main__":
     mcp.run()

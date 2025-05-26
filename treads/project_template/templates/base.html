@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>treads</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <style>
+      /* Remove PicoCSS styles, now using Tailwind */
       body {
         background: #f8fafc;
         min-height: 100vh;
@@ -31,12 +33,20 @@
 <body>
   <div class="container">
     <header>
-      <h1>treads</h1>
-      <p class="secondary">A Python framework for LLM apps with MCP & OpenAI</p>
+      <h1>Nanobot Treads</h1>
+      <p class="secondary">A Python framework for LLM apps with MCP</p>
     </header>
     <main>
       {% block content %}
       <!-- Page content goes here -->
+      <div id="agent-ui-root"
+           hx-post="/api/resource"
+           hx-trigger="load"
+           hx-vals='{"uri": "ui://app/root"}'
+           hx-target="#agent-ui-root"
+           hx-swap="innerHTML">
+        <p>Loading UI...</p>
+      </div>
       {% endblock %}
     </main>
   </div>

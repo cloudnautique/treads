@@ -69,12 +69,16 @@ AGENTS_DIR = Path.cwd() / "agents"
 
 
 def copy_agent_template_dir(src, dst, agent_name):
-    """Recursively copy agent template directory from src to dst, substituting {name}."""
+    """Recursively copy agent template directory from src to dst, substituting {name}. Also copy 'templates' dir if present."""
     for item in src.iterdir():
         dest_item = dst / item.name
         if item.is_dir():
             dest_item.mkdir(parents=True, exist_ok=True)
-            copy_agent_template_dir(item, dest_item, agent_name)
+            # If this is a 'templates' directory, copy all its contents recursively
+            if item.name == "templates":
+                shutil.copytree(item, dest_item, dirs_exist_ok=True)
+            else:
+                copy_agent_template_dir(item, dest_item, agent_name)
         else:
             dest_item.parent.mkdir(parents=True, exist_ok=True)
             with open(item, "r") as f:

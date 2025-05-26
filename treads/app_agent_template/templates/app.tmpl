@@ -1,0 +1,196 @@
+<div class="flex flex-col gap-6 mt-6">
+  <form id="chat-form" class="flex items-center shadow-sm rounded-lg overflow-hidden border border-gray-200" autocomplete="off">
+    <input
+      type="text"
+      name="prompt"
+      id="chat-input"
+      class="flex-1 py-3 px-5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      placeholder="Type your message..."
+      required
+    >
+    <button
+      type="submit"
+      class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 transition-colors duration-200 flex items-center justify-center"
+      aria-label="Send"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L21 12m0 0L10.5 4.5m10.5 7.5H3" />
+      </svg>
+    </button>
+  </form>
+  <div id="chat-response" class="min-h-[3rem] p-4 bg-gray-50 rounded-lg text-gray-800 shadow-sm border border-gray-100">
+    <div id="chat-progress"></div>
+    <div id="chat-result"></div>
+  </div>
+  <div id="chat-debug" class="mt-2 text-xs text-gray-500 bg-gray-100 rounded p-2"></div>
+</div>
+
+<!-- Place script after all DOM elements it references -->
+<script>
+(function() {
+  function debugLog(msg) {
+    var chatDebug = document.getElementById('chat-debug');
+    if (chatDebug) chatDebug.innerHTML += `<div>${msg}</div>`;
+    console.log(msg);
+  }
+  if (!document.getElementById('chat-form')) {
+    debugLog('ERROR: #chat-form not found! Script loaded too early.');
+    return;
+  }
+  debugLog('Chat script loaded.');
+  var form = document.getElementById('chat-form');
+  var input = document.getElementById('chat-input');
+  var chatResponse = document.getElementById('chat-response');
+  var chatProgress = document.getElementById('chat-progress');
+  var chatResult = document.getElementById('chat-result');
+  var chatDebug = document.getElementById('chat-debug');
+  var chatThread = document.createElement('div');
+  chatThread.id = 'chat-thread';
+  chatThread.className = 'flex flex-col gap-4';
+  chatResponse.innerHTML = '';
+  chatResponse.appendChild(chatThread);
+
+  function appendUserMessage(text) {
+    var msg = document.createElement('div');
+    msg.className = 'self-end max-w-[80%] bg-blue-100 text-blue-900 rounded-lg px-4 py-2 shadow text-right';
+    msg.innerHTML = text;
+    chatThread.appendChild(msg);
+  }
+  function appendBotMessage(text) {
+    var msg = document.createElement('div');
+    msg.className = 'self-start max-w-[80%] bg-white text-gray-900 rounded-lg px-4 py-2 shadow border border-gray-200 text-left';
+    msg.innerHTML = text;
+    chatThread.appendChild(msg);
+  }
+
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    debugLog('Form submitted.');
+    var userPrompt = input.value.trim();
+    if (!userPrompt) {
+      debugLog('Prompt is empty.');
+      return;
+    }
+    appendUserMessage(userPrompt);
+    var payload = {
+      method: "tools/call",
+      params: {
+        name: "app",
+        arguments: {
+          prompt: userPrompt,
+          attachments: []
+        },
+        _meta: {
+          progressToken: 0
+        }
+      }
+    };
+    chatProgress.innerHTML = '<div class="animate-pulse">Processing...</div>';
+    chatResult.innerHTML = '';
+    chatDebug.innerHTML = '';
+    debugLog('Sending payload to /api/tool-call?stream=1: ' + JSON.stringify(payload));
+    fetch('/api/tool-call?stream=1', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    }).then(function(response) {
+      debugLog('Response status: ' + response.status);
+      if (!response.ok) {
+        chatResponse.innerHTML = `<div class='text-red-500'>Error: ${response.status} ${response.statusText}</div>`;
+        debugLog('Fetch failed with status: ' + response.status);
+        return;
+      }
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = '';
+      function processText(text) {
+        debugLog('processText called with raw text: ' + JSON.stringify(text));
+        buffer += text;
+        var messages = buffer.split(/\r?\n\r?\n/);
+        buffer = messages.pop();
+        messages.forEach(function(message) {
+          debugLog('Processing SSE message: ' + JSON.stringify(message));
+          // Robustly parse event and data fields (handle multi-line data)
+          var eventType = null;
+          var dataLines = [];
+          message.split('\n').forEach(function(line) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              dataLines.push(line.slice(6));
+            } else if (line.startsWith('data:')) {
+              dataLines.push(line.slice(5).trim());
+            } else if (line.trim() !== '') {
+              dataLines.push(line);
+            }
+          });
+          if (dataLines.length > 0) {
+            var dataStr = dataLines.join('\n');
+            try {
+              var eventData = JSON.parse(dataStr);
+              if (typeof eventData === 'string') {
+                eventData = JSON.parse(eventData);
+              }
+              debugLog('Received SSE event: ' + eventType + ' | ' + JSON.stringify(eventData));
+              // Dump all events to debug area
+              chatDebug.innerHTML += `<div><b>${eventType}</b>: ${JSON.stringify(eventData)}</div>`;
+              if (eventType === 'test') {
+                chatProgress.innerHTML = '<div class="text-blue-500">' + (eventData.message || JSON.stringify(eventData)) + '</div>';
+              } else if (eventType === 'progress') {
+                var val = (typeof eventData.progress !== 'undefined')
+                  ? `Progress: ${eventData.progress}`
+                  : (eventData.value || '');
+                if (eventData.message) {
+                  val += ` ${eventData.message}`;
+                }
+                if (val) {
+                  chatProgress.innerHTML = val;
+                }
+                chatProgress.innerHTML += `<div class='text-xs text-gray-400'>Raw: ${JSON.stringify(eventData)}</div>`;
+              } else if (eventType === 'complete') {
+                debugLog('Rendering complete event: ' + JSON.stringify(eventData));
+                chatProgress.innerHTML = '';
+                var result = eventData.content && eventData.content.length > 0 ? eventData.content[0] : null;
+                if (result && result.type === 'text') {
+                  appendBotMessage(result.text);
+                } else if (result && result.type === 'image') {
+                  appendBotMessage(`<img src=\"${result.data}\" alt=\"Image result\" class=\"max-w-xs rounded shadow\" />`);
+                } else {
+                  appendBotMessage(JSON.stringify(result));
+                }
+              } else if (eventType === 'error') {
+                chatProgress.innerHTML = '';
+                chatResult.innerHTML = `<div class='text-red-500'>Error: ${eventData.error || JSON.stringify(eventData)}</div>`;
+              }
+            } catch (e) {
+              debugLog('Failed to parse SSE message: ' + e + ' | Raw: ' + dataStr);
+              chatResult.innerHTML += `<div class='text-xs text-red-500'>Failed to parse server message: ${e.message}</div>`;
+            }
+          } else {
+            debugLog('No data field in SSE message: ' + message);
+          }
+        });
+      }
+      function pump() {
+        return reader.read().then(function(result) {
+          var done = result.done, value = result.value;
+          if (done) {
+            if (buffer) processText(buffer);
+            debugLog('Stream done.');
+            return;
+          }
+          processText(decoder.decode(value, { stream: true }));
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function(error) {
+      debugLog('Fetch error: ' + error);
+      chatResponse.innerHTML = `<div class='text-red-500'>Error: ${error.message}</div>`;
+    });
+    input.value = '';
+  });
+})();
+</script>
