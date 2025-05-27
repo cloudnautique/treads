@@ -35,7 +35,7 @@ def adjust_mcp_paths(agent_name, mcp_servers):
 
 def merge_nanobot_yamls():
     merged = {
-        "publish": {"tools": [], "prompts": [], "resources": []},
+        "publish": {"tools": [], "prompts": [], "resources": [], "resourceTemplates": []},
         "agents": {},
         "mcpServers": {},
     }
@@ -46,7 +46,7 @@ def merge_nanobot_yamls():
             if k in main_yaml:
                 if isinstance(main_yaml[k], dict):
                     if k == "publish":
-                        # Merge tools, prompts, and resources
+                        # Merge tools, prompts, resources, and resourceTemplates
                         if "tools" in main_yaml[k]:
                             merged["publish"]["tools"].extend(main_yaml[k]["tools"])
                         if "prompts" in main_yaml[k]:
@@ -54,6 +54,10 @@ def merge_nanobot_yamls():
                         if "resources" in main_yaml[k]:
                             merged["publish"]["resources"].extend(
                                 main_yaml[k]["resources"]
+                            )
+                        if "resourceTemplates" in main_yaml[k]:
+                            merged["publish"]["resourceTemplates"].extend(
+                                main_yaml[k]["resourceTemplates"]
                             )
                     else:
                         merged[k].update(main_yaml[k])
@@ -70,7 +74,7 @@ def merge_nanobot_yamls():
         if not agent_yaml_path.exists():
             continue
         agent_yaml = load_yaml(agent_yaml_path)
-        # Merge publish tools, prompts, and resources
+        # Merge publish tools, prompts, resources, and resourceTemplates
         if "publish" in agent_yaml:
             if "tools" in agent_yaml["publish"]:
                 merged["publish"]["tools"].extend(agent_yaml["publish"]["tools"])
@@ -79,6 +83,10 @@ def merge_nanobot_yamls():
             if "resources" in agent_yaml["publish"]:
                 merged["publish"]["resources"].extend(
                     agent_yaml["publish"]["resources"]
+                )
+            if "resourceTemplates" in agent_yaml["publish"]:
+                merged["publish"]["resourceTemplates"].extend(
+                    agent_yaml["publish"]["resourceTemplates"]
                 )
         # Merge agents
         if "agents" in agent_yaml:
@@ -110,6 +118,10 @@ def merge_nanobot_yamls():
     # Remove duplicates in publish.resources
     merged["publish"]["resources"] = list(
         sorted(set(merged["publish"].get("resources", [])))
+    )
+    # Remove duplicates in publish.resourceTemplates
+    merged["publish"]["resourceTemplates"] = list(
+        sorted(set(merged["publish"].get("resourceTemplates", [])))
     )
     # Set entrypoint: prefer agent value, fallback to app agent
     entrypoint = None

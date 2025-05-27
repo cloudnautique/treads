@@ -2,6 +2,7 @@ publish:
   tools: [app]
   prompts: [app_tools]
   resources: [app_tools]
+  resourceTemplates: [app_tools]
 
 agents:
   app:

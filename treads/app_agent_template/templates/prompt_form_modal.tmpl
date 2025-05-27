@@ -1,0 +1,21 @@
+{# Render a form for a prompt with arguments #}
+<form id="prompt-form" class="flex flex-col gap-4">
+  <h2 class="text-lg font-semibold mb-2">{{ prompt.name }}</h2>
+  {% if prompt.description %}
+    <div class="text-gray-600 text-sm mb-2">{{ prompt.description }}</div>
+  {% endif %}
+  {% for arg in prompt.arguments %}
+    <div class="flex flex-col gap-1">
+      <label class="font-medium text-gray-700" for="arg-{{ arg.name }}">{{ arg.name }}</label>
+      <input 
+        type="text" 
+        id="arg-{{ arg.name }}" 
+        name="{{ arg.name }}" 
+        class="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        placeholder="{{ arg.description or arg.name }}"
+        {% if arg.required %}required{% endif %}
+      >
+    </div>
+  {% endfor %}
+  <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Submit</button>
+</form>

@@ -7,11 +7,10 @@ from contextlib import asynccontextmanager
 
 # Third-party imports
 import openai
-from fastapi import FastAPI, Request, HTTPException, Query
+from fastapi import FastAPI, Request, HTTPException, Query, Body
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
-from sse_starlette.sse import EventSourceResponse
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
@@ -177,7 +176,7 @@ def to_call_tool_result(result, is_error=False):
     return {"isError": is_error, "content": content_list}
 
 
-@app.post("/api/tool-call")
+@app.post("/api/tools")
 async def tool_call(request: Request, stream: int = Query(0)):
     """
     Handle tool calls, supporting both streaming (SSE) and non-streaming modes.
@@ -187,7 +186,7 @@ async def tool_call(request: Request, stream: int = Query(0)):
     from fastapi import Request
     from sse_starlette.sse import EventSourceResponse
 
-    logger.info("/api/tool-call endpoint hit")
+    logger.info("/api/tools endpoint hit")
     # Accept both JSON and form data
     if request.headers.get("content-type", "").startswith("application/json"):
         data = await request.json()
@@ -208,7 +207,7 @@ async def tool_call(request: Request, stream: int = Query(0)):
     logger.info(f"stream_requested: {stream_requested}")
 
     if method != "tools/call":
-        logger.warning(f"/api/tool-call received invalid method: {method}")
+        logger.warning(f"/api/tools received invalid method: {method}")
         raise HTTPException(status_code=400, detail=f"Invalid method: {method}")
 
     tool_name = params.get("name")
@@ -216,7 +215,7 @@ async def tool_call(request: Request, stream: int = Query(0)):
     logger.info(f"tool_name: {tool_name}, arguments: {arguments}")
 
     if not tool_name:
-        logger.warning("/api/tool-call missing 'name' in params")
+        logger.warning("/api/tools missing 'name' in params")
         raise HTTPException(status_code=400, detail="Missing 'name' in params")
 
     logger.info(f"Tool call: {tool_name} (stream={stream_requested}) with arguments: {arguments}")
@@ -235,7 +234,7 @@ async def tool_call(request: Request, stream: int = Query(0)):
             except Exception as e:
                 yield {"event": "error", "data": _json.dumps(to_call_tool_result(str(e), is_error=True))}
             sent = True
-        logger.info("Returning EventSourceResponse from /api/tool-call (no progress events)")
+        logger.info("Returning EventSourceResponse from /api/tools (no progress events)")
         return EventSourceResponse(
             event_generator(),
             media_type="text/event-stream",
@@ -256,3 +255,72 @@ async def tool_call(request: Request, stream: int = Query(0)):
         except Exception as e:
             logger.error(f"MCP tool call failed: {e}", exc_info=True)
             return to_call_tool_result(str(e), is_error=True)
+
+@app.get("/api/prompts")
+async def list_prompts():
+    async with mcp_client:
+        prompts = await mcp_client.list_prompts()
+    return {"prompts": [p for p in prompts]}
+
+@app.post("/api/prompts/{name}")
+async def get_prompt(name: str, args: dict = Body(...)):
+    args = args or {}
+    try:
+        async with mcp_client:
+            result = await mcp_client.get_prompt(name, args)
+            print(f"[DEBUG] Prompt call result: {result}")
+            # Always return the rendered text as 'text' for frontend chat
+            text = None
+            # Try to extract text from result.messages[0].content.text if possible
+            try:
+                if hasattr(result, 'messages') and result.messages:
+                    msg = result.messages[0]
+                    if hasattr(msg, 'content') and hasattr(msg.content, 'text'):
+                        text = msg.content.text
+            except Exception:
+                pass
+            # Fallback: try to get text from result.text if present
+            if not text and hasattr(result, 'text'):
+                text = result.text
+            return {
+                "description": getattr(result, 'description', None),
+                "messages": getattr(result, 'messages', []),
+                "text": text,
+            }
+    except Exception as e:
+        logging.exception("Failed to get prompt")
+        return {"error": str(e)}
+
+@app.get("/api/resources")
+async def list_resources():
+    """
+    List all available resources from the MCP client.
+    """
+    try:
+        async with mcp_client:
+            # If your MCP client has a list_resources method, use it. Otherwise, replace with correct logic.
+            if hasattr(mcp_client, 'list_resources'):
+                resources = await mcp_client.list_resources()
+            else:
+                resources = []  # TODO: Implement actual resource listing if not available
+        return {"resources": resources}
+    except Exception as e:
+        logger.error(f"Failed to list resources: {e}")
+        return {"error": str(e)}
+
+@app.get("/api/tools")
+async def list_tools():
+    """
+    List all available tools from the MCP client.
+    """
+    try:
+        async with mcp_client:
+            # If your MCP client has a list_tools method, use it. Otherwise, replace with correct logic.
+            if hasattr(mcp_client, 'list_tools'):
+                tools = await mcp_client.list_tools()
+            else:
+                tools = []  # TODO: Implement actual tool listing if not available
+        return {"tools": tools}
+    except Exception as e:
+        logger.error(f"Failed to list tools: {e}")
+        return {"error": str(e)}
