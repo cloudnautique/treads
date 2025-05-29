@@ -72,20 +72,23 @@
       document.getElementById("prompt-form-modal").classList.add("hidden");
     }
   });
-</script>
-<script>
   function addUserBubble(e) {
     const input = document.getElementById("chat-input");
     const chatResp = document.getElementById("chat-response");
     const val = input.value.trim();
     if (!val) return false; // prevent blank messages
-    // Create the user bubble
     const div = document.createElement("div");
     div.className = "chat-bubble chat-bubble-user text-right self-end bg-blue-500 text-white";
     div.innerText = val;
     chatResp.appendChild(div);
-    // Let HTMX submit (return true)
     return true;
   }
+  // This clears the input only after the request is sent!
+  document.body.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail && evt.detail.elt && evt.detail.elt.id === 'chat-form') {
+      const input = document.getElementById('chat-input');
+      if (input) input.value = '';
+    }
+  });
 </script>
 {% endblock %}
