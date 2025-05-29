@@ -3,9 +3,13 @@
   {% for prompt in prompts %}
     <button 
       class="prompt-btn bg-gray-200 hover:bg-blue-100 text-gray-800 rounded px-3 py-2 text-left shadow border border-gray-300 flex flex-col items-start"
-      data-prompt="{{ prompt.name }}"
-      data-prompt-description="{{ prompt.description|default('') }}"
-      data-prompt-args='{{ prompt.arguments|tojson }}'
+      hx-post="/api/resources/ui"
+      hx-vals='{"uri": "ui://app/prompts/{{ prompt.name }}/form"}'
+      hx-headers='{"Content-Type": "application/json"}'
+      hx-ext="json-enc"
+      hx-target="#prompt-form-content"
+      hx-swap="innerHTML"
+      hx-trigger="click"
       type="button"
     >
       <span class="font-semibold">{{ prompt.name }}</span>

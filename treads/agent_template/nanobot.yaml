@@ -16,4 +16,5 @@ mcpServers:
     command: "uv"
     args:
     - "run"
+    - "--active"
     - "tools.py"

@@ -1,7 +1,3 @@
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
 from prompts import register_prompts
 from resources import register_resources
 from fastmcp import FastMCP

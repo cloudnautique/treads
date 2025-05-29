@@ -2,7 +2,7 @@ from fastmcp import FastMCP
 
 
 def register_resources(mcp: FastMCP):
-    @mcp.resource("html://widget/hello")
+    @mcp.resource(f"ui://{name}/hello")
     def hello_widget_resource():
         """Returns a raw HTML widget."""
         return {

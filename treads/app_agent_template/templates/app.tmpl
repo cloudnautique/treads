@@ -1,5 +1,13 @@
+{% block content %}
 <div class="flex flex-col gap-6 mt-6">
-  <form id="chat-form" class="flex items-center shadow-sm rounded-lg overflow-hidden border border-gray-200" autocomplete="off">
+  <form id="chat-form"
+        class="flex items-center shadow-sm rounded-lg overflow-hidden border border-gray-200" autocomplete="off"
+        hx-post="/api/chat"
+        hx-trigger="submit"
+        hx-ext="json-enc"
+        hx-headers='{"Content-Type": "application/json"}'
+        hx-target="#chat-response"
+        hx-swap="beforeend">
     <input
       type="text"
       name="prompt"
@@ -20,15 +28,15 @@
   </form>
   <div id="prompts-section" class="mt-8">
     <h3 class="text-lg font-semibold mb-2">Prompts</h3>
-    <div id="prompts-list" class="flex flex-wrap gap-2">
-       <div id="agent-ui-root"
-           hx-post="/api/resource"
-           hx-trigger="load"
-           hx-vals='{"uri": "ui://app/prompts"}'
-           hx-target="#prompts-list"
-           hx-swap="innerHTML">
-        <p>Loading Prompts...</p>
-    </div>
+    <div id="prompts-list" class="flex flex-wrap gap-2"
+         hx-post="/api/resources/ui"
+         hx-vals='{"uri": "ui://app/prompts"}'
+         hx-headers='{"Content-Type": "application/json"}'
+         hx-ext="json-enc"
+         hx-trigger="load"
+         hx-target="#prompts-list"
+         hx-swap="innerHTML">
+      <p>Loading Prompts...</p>
     </div>
     <!-- Modal for prompt form -->
     <div id="prompt-form-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden">
@@ -39,411 +47,42 @@
     </div>
   </div>
   <div id="chat-response" class="min-h-[3rem] p-4 bg-gray-50 rounded-lg text-gray-800 shadow-sm border border-gray-100">
-    <div id="chat-progress"></div>
-    <div id="chat-result"></div>
+    <!-- Chat response will be swapped in here by HTMX -->
+    {% if chat_input %}
+      <div data-rendered-prompt style="display:none;">{{ chat_input }}</div>
+    {% endif %}
   </div>
-  <div id="chat-debug" class="mt-2 text-xs text-gray-500 bg-gray-100 rounded p-2"></div>
 </div>
-
-<!-- Place script after all DOM elements it references -->
-<script src="https://unpkg.com/htmx.org@1.9.10"></script>
 <script>
-(function() {
-  function debugLog(msg) {
-    var chatDebug = document.getElementById('chat-debug');
-    if (chatDebug) chatDebug.innerHTML += `<div>${msg}</div>`;
-    console.log(msg);
-  }
-  if (!document.getElementById('chat-form')) {
-    debugLog('ERROR: #chat-form not found! Script loaded too early.');
-    return;
-  }
-  debugLog('Chat script loaded.');
-  var form = document.getElementById('chat-form');
-  var input = document.getElementById('chat-input');
-  var chatResponse = document.getElementById('chat-response');
-  var chatProgress = document.getElementById('chat-progress');
-  var chatResult = document.getElementById('chat-result');
-  var chatDebug = document.getElementById('chat-debug');
-  var chatThread = document.createElement('div');
-  chatThread.id = 'chat-thread';
-  chatThread.className = 'flex flex-col gap-4';
-  chatResponse.innerHTML = '';
-  chatResponse.appendChild(chatThread);
-
-  function appendUserMessage(text) {
-    var msg = document.createElement('div');
-    msg.className = 'self-end max-w-[80%] bg-blue-100 text-blue-900 rounded-lg px-4 py-2 shadow text-right';
-    msg.innerHTML = text;
-    chatThread.appendChild(msg);
-  }
-  function appendBotMessage(text) {
-    var msg = document.createElement('div');
-    msg.className = 'self-start max-w-[80%] bg-white text-gray-900 rounded-lg px-4 py-2 shadow border border-gray-200 text-left';
-    msg.innerHTML = text;
-    chatThread.appendChild(msg);
-  }
-
-  form.addEventListener('submit', function(event) {
-    event.preventDefault();
-    debugLog('Form submitted.');
-    var userPrompt = input.value.trim();
-    if (!userPrompt) {
-      debugLog('Prompt is empty.');
-      return;
+  // Show modal when prompt form content is loaded
+  document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target && evt.detail.target.id === "prompt-form-content") {
+      document.getElementById("prompt-form-modal").classList.remove("hidden");
     }
-    appendUserMessage(userPrompt);
-    var payload = {
-      method: "tools/call",
-      params: {
-        name: "app",
-        arguments: {
-          prompt: userPrompt,
-          attachments: []
-        },
-        _meta: {
-          progressToken: 0
-        }
-      }
-    };
-    chatProgress.innerHTML = '<div class="animate-pulse">Processing...</div>';
-    chatResult.innerHTML = '';
-    chatDebug.innerHTML = '';
-    debugLog('Sending payload to /api/tools?stream=1: ' + JSON.stringify(payload));
-    fetch('/api/tools?stream=1', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    }).then(function(response) {
-      debugLog('Response status: ' + response.status);
-      if (!response.ok) {
-        chatResponse.innerHTML = `<div class='text-red-500'>Error: ${response.status} ${response.statusText}</div>`;
-        debugLog('Fetch failed with status: ' + response.status);
-        return;
-      }
-      var reader = response.body.getReader();
-      var decoder = new TextDecoder();
-      var buffer = '';
-      function processText(text) {
-        debugLog('processText called with raw text: ' + JSON.stringify(text));
-        buffer += text;
-        var messages = buffer.split(/\r?\n\r?\n/);
-        buffer = messages.pop();
-        messages.forEach(function(message) {
-          if (message.trim().startsWith(':')) {
-            debugLog('Ignoring SSE comment/ping: ' + message);
-            return;
-          }
-          debugLog('Processing SSE message: ' + JSON.stringify(message));
-          // Robustly parse event and data fields (handle multi-line data)
-          var eventType = null;
-          var dataLines = [];
-          message.split('\n').forEach(function(line) {
-            if (line.startsWith('event: ')) {
-              eventType = line.slice(7).trim();
-            } else if (line.startsWith('data: ')) {
-              dataLines.push(line.slice(6));
-            } else if (line.startsWith('data:')) {
-              dataLines.push(line.slice(5).trim());
-            } else if (line.trim() !== '') {
-              dataLines.push(line);
-            }
-          });
-          if (dataLines.length > 0) {
-            var dataStr = dataLines.join('\n');
-            try {
-              var eventData = JSON.parse(dataStr);
-              if (typeof eventData === 'string') {
-                eventData = JSON.parse(eventData);
-              }
-              debugLog('Received SSE event: ' + eventType + ' | ' + JSON.stringify(eventData));
-              // Dump all events to debug area
-              chatDebug.innerHTML += `<div><b>${eventType}</b>: ${JSON.stringify(eventData)}</div>`;
-              if (eventType === 'test') {
-                chatProgress.innerHTML = '<div class="text-blue-500">' + (eventData.message || JSON.stringify(eventData)) + '</div>';
-              } else if (eventType === 'progress') {
-                // Handle streaming delta updates
-                if (
-                  eventData.method === 'notification/progress' &&
-                  eventData.params &&
-                  eventData.params.data &&
-                  eventData.params.data.type === 'response.output_text.delta' &&
-                  typeof eventData.params.data.delta === 'string'
-                ) {
-                  // Append delta to the last bot message, or create if not present
-                  let lastBotMsg = chatThread.querySelector('.bot-streaming-msg');
-                  if (!lastBotMsg) {
-                    lastBotMsg = document.createElement('div');
-                    lastBotMsg.className = 'self-start max-w-[80%] bg-white text-gray-900 rounded-lg px-4 py-2 shadow border border-gray-200 text-left bot-streaming-msg';
-                    lastBotMsg.textContent = '';
-                    chatThread.appendChild(lastBotMsg);
-                  }
-                  lastBotMsg.textContent += eventData.params.data.delta;
-                  // Scroll to bottom
-                  chatThread.scrollTop = chatThread.scrollHeight;
-                } else {
-                  var val = (typeof eventData.progress !== 'undefined')
-                    ? `Progress: ${eventData.progress}`
-                    : (eventData.value || '');
-                  if (eventData.message) {
-                    val += ` ${eventData.message}`;
-                  }
-                  if (val) {
-                    chatProgress.innerHTML = val;
-                  }
-                  chatProgress.innerHTML += `<div class='text-xs text-gray-400'>Raw: ${JSON.stringify(eventData)}</div>`;
-                }
-              } else if (eventType === 'complete') {
-                debugLog('Rendering complete event: ' + JSON.stringify(eventData));
-                chatProgress.innerHTML = '';
-                // Remove streaming class if present
-                let lastBotMsg = chatThread.querySelector('.bot-streaming-msg');
-                if (lastBotMsg) lastBotMsg.classList.remove('bot-streaming-msg');
-                var result = eventData.content && eventData.content.length > 0 ? eventData.content[0] : null;
-                if (result && result.type === 'text') {
-                  appendBotMessage(result.text);
-                } else if (result && result.type === 'image') {
-                  appendBotMessage(`<img src=\"${result.data}\" alt=\"Image result\" class=\"max-w-xs rounded shadow\" />`);
-                } else {
-                  appendBotMessage(JSON.stringify(result));
-                }
-              } else if (eventType === 'error') {
-                chatProgress.innerHTML = '';
-                chatResult.innerHTML = `<div class='text-red-500'>Error: ${eventData.error || JSON.stringify(eventData)}</div>`;
-              }
-            } catch (e) {
-              debugLog('Failed to parse SSE message: ' + e + ' | Raw: ' + dataStr);
-              chatResult.innerHTML += `<div class='text-xs text-red-500'>Failed to parse server message: ${e.message}</div>`;
-            }
-          } else {
-            debugLog('No data field in SSE message: ' + message);
-          }
-        });
-      }
-      function pump() {
-        return reader.read().then(function(result) {
-          var done = result.done, value = result.value;
-          if (done) {
-            if (buffer) processText(buffer);
-            debugLog('Stream done.');
-            return;
-          }
-          processText(decoder.decode(value, { stream: true }));
-          return pump();
-        });
-      }
-      return pump();
-    }).catch(function(error) {
-      debugLog('Fetch error: ' + error);
-      chatResponse.innerHTML = `<div class='text-red-500'>Error: ${error.message}</div>`;
-    });
-    input.value = '';
-  });
-  // PROMPT FORM HANDLING
-  function showPromptFormModal(html) {
-    var modal = document.getElementById('prompt-form-modal');
-    var content = document.getElementById('prompt-form-content');
-    content.innerHTML = html;
-    modal.classList.remove('hidden');
-  }
-  function hidePromptFormModal() {
-    var modal = document.getElementById('prompt-form-modal');
-    var content = document.getElementById('prompt-form-content');
-    content.innerHTML = '';
-    modal.classList.add('hidden');
-  }
-  document.getElementById('close-prompt-form').onclick = hidePromptFormModal;
-  // Delegate click on prompts
-  document.addEventListener('click', function(e) {
-    var el = e.target;
-    // Find prompt button
-    if (el.classList.contains('prompt-btn')) {
-      var promptName = el.getAttribute('data-prompt');
-      fetch('/api/resource', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri: `ui://app/prompt_form/${promptName}` })
-      })
-      .then(r => r.text())
-      .then(html => {
-        showPromptFormModal(html);
-        // Attach submit handler
-        var form = document.getElementById('prompt-form');
-        if (form) {
-          form.onsubmit = function(ev) {
-            ev.preventDefault();
-            var formData = {};
-            Array.from(form.elements).forEach(function(input) {
-              if (input.name && !input.disabled) {
-                formData[input.name] = input.value;
-              }
-            });
-            fetch(`/api/prompts/${promptName}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(formData)
-            })
-            .then(r => r.json())
-            .then(data => {
-              hidePromptFormModal();
-              // Simulate user entering the prompt text as chat input
-              if (data && data.text) {
-                // Show the prompt text as if the user typed it
-                appendUserMessage(data.text);
-                // Optionally, trigger the same chat logic as the chat form
-                var payload = {
-                  method: "tools/call",
-                  params: {
-                    name: "app",
-                    arguments: {
-                      prompt: data.text,
-                      attachments: []
-                    },
-                    _meta: {
-                      progressToken: 0
-                    }
-                  }
-                };
-                chatProgress.innerHTML = '<div class="animate-pulse">Processing...</div>';
-                chatResult.innerHTML = '';
-                chatDebug.innerHTML = '';
-                debugLog('Sending payload to /api/tools?stream=1: ' + JSON.stringify(payload));
-                fetch('/api/tools?stream=1', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify(payload)
-                }).then(function(response) {
-                  debugLog('Response status: ' + response.status);
-                  if (!response.ok) {
-                    chatResponse.innerHTML = `<div class='text-red-500'>Error: ${response.status} ${response.statusText}</div>`;
-                    debugLog('Fetch failed with status: ' + response.status);
-                    return;
-                  }
-                  var reader = response.body.getReader();
-                  var decoder = new TextDecoder();
-                  var buffer = '';
-                  function processText(text) {
-                    debugLog('processText called with raw text: ' + JSON.stringify(text));
-                    buffer += text;
-                    var messages = buffer.split(/\r?\n\r?\n/);
-                    buffer = messages.pop();
-                    messages.forEach(function(message) {
-                      if (message.trim().startsWith(':')) {
-                        debugLog('Ignoring SSE comment/ping: ' + message);
-                        return;
-                      }
-                      debugLog('Processing SSE message: ' + JSON.stringify(message));
-                      var eventType = null;
-                      var dataLines = [];
-                      message.split('\n').forEach(function(line) {
-                        if (line.startsWith('event: ')) {
-                          eventType = line.slice(7).trim();
-                        } else if (line.startsWith('data: ')) {
-                          dataLines.push(line.slice(6));
-                        } else if (line.startsWith('data:')) {
-                          dataLines.push(line.slice(5).trim());
-                        } else if (line.trim() !== '') {
-                          dataLines.push(line);
-                        }
-                      });
-                      if (dataLines.length > 0) {
-                        var dataStr = dataLines.join('\n');
-                        try {
-                          var eventData = JSON.parse(dataStr);
-                          if (typeof eventData === 'string') {
-                            eventData = JSON.parse(eventData);
-                          }
-                          debugLog('Received SSE event: ' + eventType + ' | ' + JSON.stringify(eventData));
-                          chatDebug.innerHTML += `<div><b>${eventType}</b>: ${JSON.stringify(eventData)}</div>`;
-                          if (eventType === 'test') {
-                            chatProgress.innerHTML = '<div class="text-blue-500">' + (eventData.message || JSON.stringify(eventData)) + '</div>';
-                          } else if (eventType === 'progress') {
-                            // Handle streaming delta updates
-                            if (
-                              eventData.method === 'notification/progress' &&
-                              eventData.params &&
-                              eventData.params.data &&
-                              eventData.params.data.type === 'response.output_text.delta' &&
-                              typeof eventData.params.data.delta === 'string'
-                            ) {
-                              // Append delta to the last bot message, or create if not present
-                              let lastBotMsg = chatThread.querySelector('.bot-streaming-msg');
-                              if (!lastBotMsg) {
-                                lastBotMsg = document.createElement('div');
-                                lastBotMsg.className = 'self-start max-w-[80%] bg-white text-gray-900 rounded-lg px-4 py-2 shadow border border-gray-200 text-left bot-streaming-msg';
-                                lastBotMsg.textContent = '';
-                                chatThread.appendChild(lastBotMsg);
-                              }
-                              lastBotMsg.textContent += eventData.params.data.delta;
-                              // Scroll to bottom
-                              chatThread.scrollTop = chatThread.scrollHeight;
-                            } else {
-                              var val = (typeof eventData.progress !== 'undefined')
-                                ? `Progress: ${eventData.progress}`
-                                : (eventData.value || '');
-                              if (eventData.message) {
-                                val += ` ${eventData.message}`;
-                              }
-                              if (val) {
-                                chatProgress.innerHTML = val;
-                              }
-                              chatProgress.innerHTML += `<div class='text-xs text-gray-400'>Raw: ${JSON.stringify(eventData)}</div>`;
-                            }
-                          } else if (eventType === 'complete') {
-                            var result = eventData.content && eventData.content.length > 0 ? eventData.content[0] : null;
-                            if (result && result.type === 'text') {
-                              appendBotMessage(result.text);
-                            } else if (result && result.type === 'image') {
-                              appendBotMessage(`<img src=\"${result.data}\" alt=\"Image result\" class=\"max-w-xs rounded shadow\" />`);
-                            }
-                          } else if (eventType === 'error') {
-                            chatProgress.innerHTML = '';
-                            chatResult.innerHTML = `<div class='text-red-500'>Error: ${eventData.error || JSON.stringify(eventData)}</div>`;
-                          }
-                        } catch (e) {
-                          debugLog('Failed to parse SSE message: ' + e + ' | Raw: ' + dataStr);
-                          chatResult.innerHTML += `<div class='text-xs text-red-500'>Failed to parse server message: ${e.message}</div>`;
-                        }
-                      } else {
-                        debugLog('No data field in SSE message: ' + message);
-                      }
-                    });
-                  }
-                  function pump() {
-                    return reader.read().then(function(result) {
-                      var done = result.done, value = result.value;
-                      if (done) {
-                        if (buffer) processText(buffer);
-                        debugLog('Stream done.');
-                        return;
-                      }
-                      processText(decoder.decode(value, { stream: true }));
-                      return pump();
-                    });
-                  }
-                  return pump();
-                }).catch(function(error) {
-                  debugLog('Fetch error: ' + error);
-                  chatResponse.innerHTML = `<div class='text-red-500'>Error: ${error.message}</div>`;
-                });
-              } else if (data && data.error) {
-                appendBotMessage(`<span class='text-red-500'>${data.error}</span>`);
-              } else {
-                appendBotMessage('<span class="text-gray-400">No response from prompt.</span>');
-              }
-            })
-            .catch(err => {
-              hidePromptFormModal();
-              appendBotMessage(`<span class='text-red-500'>${err.message}</span>`);
-            });
-          };
-        }
-      });
+    // Close modal if the form was just submitted and response is swapped into #chat-response
+    if (evt.detail.target && evt.detail.target.id === "chat-response") {
+      document.getElementById("prompt-form-modal").classList.add("hidden");
     }
   });
-})();
+
+  // Hide modal when close button is clicked
+  document.addEventListener('click', function(evt) {
+    if (evt.target && evt.target.id === "close-prompt-form") {
+      document.getElementById("prompt-form-modal").classList.add("hidden");
+    }
+  });
+
+  // Handle submit event for chat form
+  document.getElementById("chat-form").addEventListener("submit", function(e) {
+    const input = document.getElementById("chat-input");
+    const chatResp = document.getElementById("chat-response");
+    // Add user message, right-justified
+    const div = document.createElement("div");
+    div.className = "flex justify-end mb-2";
+    div.innerHTML = `<div class="bg-blue-500 text-white px-4 py-2 rounded-lg max-w-[70%] text-right">${input.value}</div>`;
+    chatResp.appendChild(div);
+    // Let HTMX submit as normal!
+    // (Input will be cleared by server if you set it, or clear here after a short delay)
+  });
 </script>
+{% endblock %}

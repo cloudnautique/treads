@@ -1,23 +1,31 @@
-import sys
 import logging
-from pathlib import Path
 from fastmcp import FastMCP, Context
-from mcp.types import TextContent
 
-# ToDo - can this be done at the module level?
-# Order prompts before resources to ensure they are registered first
-sys.path.insert(0, str(Path(__file__).parent))
-from prompts import register_prompts
-from resources import register_resources
+try:
+    from .prompts import register_prompts
+    from .resources import register_resources
+except ImportError:
+    from prompts import register_prompts
+    from resources import register_resources
 
-AGENT_NAME = "app"
+AGENT_NAME = "app_tools"
 
-mcp = FastMCP(name=AGENT_NAME)
-register_prompts(mcp)
-register_resources(mcp)
+
+def create_agent() -> FastMCP:
+    mcp = FastMCP(name=AGENT_NAME)
+    register_prompts(mcp)
+    register_resources(mcp)
+    return mcp
+
 
 logger = logging.getLogger("treads.agent.app.tools")
-logging.basicConfig(level=logging.INFO)
+
+
+def setup_logging():
+    logging.basicConfig(level=logging.INFO)
+
+
+mcp = create_agent()
 
 
 @mcp.tool()
@@ -26,7 +34,8 @@ async def chat(prompt: str, ctx: Context) -> str:
     result = await ctx.sample(prompt)
 
     return result.text
-    
+
 
 if __name__ == "__main__":
+    setup_logging()
     mcp.run()

@@ -1,5 +1,10 @@
 {# Render a form for a prompt with arguments #}
-<form id="prompt-form" class="flex flex-col gap-4">
+<form id="prompt-form" class="flex flex-col gap-4"
+      hx-post="/api/prompts/{{ prompt.name }}/messages"
+      hx-headers='{"Content-Type": "application/json"}'
+      hx-ext="json-enc"
+      hx-target="#chat-input"
+      hx-swap="textContent">
   <h2 class="text-lg font-semibold mb-2">{{ prompt.name }}</h2>
   {% if prompt.description %}
     <div class="text-gray-600 text-sm mb-2">{{ prompt.description }}</div>
