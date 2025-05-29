@@ -21,4 +21,4 @@ mcp_client = Client(StreamableHttpTransport(url=NANOBOT_MCP_URL))
 @app.get("/", response_class=HTMLResponse)
 async def chat_view(request: Request):
     # Serve the base.html template with minimal context
-    return await get_ui_resource(dict({"uri": "ui://app/root"}))
+    return await get_ui_resource(dict({"uri": "ui://app/base"}))

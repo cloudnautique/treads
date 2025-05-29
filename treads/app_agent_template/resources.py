@@ -5,7 +5,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
 
-def render_app_template(template="base.html", context=None):
+def render_app_template(template, context=None):
     env = Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),
         autoescape=select_autoescape(["html", "jinja", "tmpl"]),
@@ -30,9 +30,11 @@ def get_prompt_dicts(ctx: Context):
 
 
 def register_resources(mcp: FastMCP):
-    @mcp.resource("ui://app/root", mime_type="application/json")
-    def app_ui_root() -> dict:
-        html = render_app_template()
+    @mcp.resource("ui://app/{page}", mime_type="application/json",
+                  description="Returns the HTML for a specific app page.",
+                  )
+    def app_ui_root(page: str) -> dict:
+        html = render_app_template(template=f"{page}.html")
         return {
             "content": {"type": "html", "htmlString": html},
             "delivery": "text",
