@@ -1,13 +1,14 @@
 {% block content %}
 <div class="flex flex-col gap-6 mt-6">
   <form id="chat-form"
-        class="flex items-center shadow-sm rounded-lg overflow-hidden border border-gray-200" autocomplete="off"
-        hx-post="/api/chat"
-        hx-trigger="submit"
-        hx-ext="json-enc"
-        hx-headers='{"Content-Type": "application/json"}'
-        hx-target="#chat-response"
-        hx-swap="beforeend">
+      class="flex items-center shadow-sm rounded-lg overflow-hidden border border-gray-200" autocomplete="off"
+      hx-post="/api/chat"
+      hx-trigger="submit"
+      hx-ext="json-enc"
+      hx-headers='{"Content-Type": "application/json"}'
+      hx-target="#chat-response"
+      hx-swap="beforeend"
+      onsubmit="return addUserBubble(event)">
     <input
       type="text"
       name="prompt"
@@ -46,7 +47,7 @@
       </div>
     </div>
   </div>
-  <div id="chat-response" class="min-h-[3rem] p-4 bg-gray-50 rounded-lg text-gray-800 shadow-sm border border-gray-100">
+  <div id="chat-response" class="min-h-[3rem] p-4 bg-gray-50 rounded-lg text-gray-800 shadow-sm border border-gray-100 flex flex-col gap-2">
     <!-- Chat response will be swapped in here by HTMX -->
     {% if chat_input %}
       <div data-rendered-prompt style="display:none;">{{ chat_input }}</div>
@@ -59,8 +60,8 @@
     if (evt.detail.target && evt.detail.target.id === "prompt-form-content") {
       document.getElementById("prompt-form-modal").classList.remove("hidden");
     }
-    // Close modal if the form was just submitted and response is swapped into #chat-response
-    if (evt.detail.target && evt.detail.target.id === "chat-response") {
+    // Close modal if the form was just submitted and response is swapped into #chat-input (handled by hx-on inline, but fallback here for completeness)
+    if (evt.detail.target && evt.detail.target.id === "chat-input") {
       document.getElementById("prompt-form-modal").classList.add("hidden");
     }
   });
@@ -71,18 +72,20 @@
       document.getElementById("prompt-form-modal").classList.add("hidden");
     }
   });
-
-  // Handle submit event for chat form
-  document.getElementById("chat-form").addEventListener("submit", function(e) {
+</script>
+<script>
+  function addUserBubble(e) {
     const input = document.getElementById("chat-input");
     const chatResp = document.getElementById("chat-response");
-    // Add user message, right-justified
+    const val = input.value.trim();
+    if (!val) return false; // prevent blank messages
+    // Create the user bubble
     const div = document.createElement("div");
-    div.className = "flex justify-end mb-2";
-    div.innerHTML = `<div class="bg-blue-500 text-white px-4 py-2 rounded-lg max-w-[70%] text-right">${input.value}</div>`;
+    div.className = "chat-bubble chat-bubble-user text-right self-end bg-blue-500 text-white";
+    div.innerText = val;
     chatResp.appendChild(div);
-    // Let HTMX submit as normal!
-    // (Input will be cleared by server if you set it, or clear here after a short delay)
-  });
+    // Let HTMX submit (return true)
+    return true;
+  }
 </script>
 {% endblock %}

@@ -206,6 +206,7 @@ async def chat_tool_call(body: dict = Body(...)):
     Accepts either {"prompt": "..."} or the full JSON-RPC style: {"method": "tools/call", "params": {"name": "app", "arguments": {"prompt": "..."}}}
     """
     # Support both direct and JSON-RPC style input
+    logger.info(f"BODY RECEIVED: {body}")
     if "prompt" in body:
         prompt = body["prompt"]
     elif body.get("method") == "tools/call" and "params" in body:
@@ -219,27 +220,25 @@ async def chat_tool_call(body: dict = Body(...)):
     try:
         async with Client(StreamableHttpTransport(url=NANOBOT_MCP_URL)) as client:
             result = await client.call_tool("app", {"prompt": prompt})
-        # result is expected to be a list of dicts or objects with 'type' and 'text'
+        # Expecting result as list of message dicts, just like before
         if isinstance(result, list) and result:
             for item in result:
-                # Support both dict and object
                 item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
                 item_text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
                 if item_type == "text" and item_text:
-                    return HTMLResponse(f'<div class="chat-response">{item_text}</div>')
-        return HTMLResponse("<p>No response</p>")
+                    # Return a generic class (not Tailwind-specific), e.g.:
+                    return HTMLResponse(
+                        f'''
+                        <div class="chat-bubble chat-bubble-bot">{item_text}</div>
+                        '''
+                    )
+        return HTMLResponse('<div class="chat-bubble chat-bubble-bot text-gray-400">No response</div>')
     except Exception as e:
         logger.error(f"Chat tool call failed: {e}")
         raise HTTPException(status_code=502, detail=str(e))
 
-
 @TreadRouter.post("/api/prompts/{name}/messages")
 async def get_rendered_prompt_messages(name: str, body: dict = Body(...)):
-    """
-    Helper route: POST /api/prompts/{name}/messages
-    Accepts the same input as /api/prompts/{name},
-    returns only the 'messages' from the result as a hidden div for HTMX swap.
-    """
     arguments = {}
     if body:
         if "params" in body and isinstance(body["params"], dict) and "arguments" in body["params"]:
@@ -251,9 +250,35 @@ async def get_rendered_prompt_messages(name: str, body: dict = Body(...)):
     try:
         async with mcp_client:
             result = await mcp_client.get_prompt(name, arguments=arguments)
-        if result is None:
-            raise HTTPException(status_code=502, detail="No messages in prompt result")
-        return result
+        # ---- Extraction logic ----
+        # If result has attribute 'messages' (not dict), extract from first message
+        if hasattr(result, "messages") and isinstance(result.messages, list):
+            first_msg = result.messages[0]
+            # For objects like PromptMessage, get .content and then .text
+            if hasattr(first_msg, "content") and hasattr(first_msg.content, "text"):
+                return HTMLResponse(first_msg.content.text)
+            # Fallback for dict style
+            if isinstance(first_msg, dict):
+                content = first_msg.get("content")
+                if isinstance(content, dict):
+                    text = content.get("text")
+                    if text:
+                        return HTMLResponse(text)
+        # If result is a dict with 'messages'
+        if isinstance(result, dict) and "messages" in result:
+            msgs = result["messages"]
+            if isinstance(msgs, list) and msgs:
+                msg = msgs[0]
+                content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
+                if content:
+                    text = content.get("text") if isinstance(content, dict) else getattr(content, "text", None)
+                    if text:
+                        return HTMLResponse(text)
+        # If already string, just return
+        if isinstance(result, str):
+            return HTMLResponse(result)
+        # As a last resort, return stringified version (not ideal)
+        return HTMLResponse(str(result))
     except Exception as e:
         logger.error(f"Prompt rendered messages fetch failed: {e}")
         raise HTTPException(status_code=502, detail=str(e))

@@ -1,10 +1,9 @@
-{# Render a form for a prompt with arguments #}
 <form id="prompt-form" class="flex flex-col gap-4"
       hx-post="/api/prompts/{{ prompt.name }}/messages"
       hx-headers='{"Content-Type": "application/json"}'
       hx-ext="json-enc"
-      hx-target="#chat-input"
-      hx-swap="textContent">
+      hx-target="#prompt-proxy"
+      hx-swap="innerHTML">
   <h2 class="text-lg font-semibold mb-2">{{ prompt.name }}</h2>
   {% if prompt.description %}
     <div class="text-gray-600 text-sm mb-2">{{ prompt.description }}</div>
@@ -24,3 +23,33 @@
   {% endfor %}
   <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Submit</button>
 </form>
+<div id="prompt-proxy" style="display:none"></div>
+<script>
+  document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target && evt.detail.target.id === "prompt-proxy") {
+      var promptText = evt.detail.target.textContent.trim();
+      var modal = document.getElementById('prompt-form-modal');
+      if (modal) modal.classList.add('hidden');
+      if (promptText) {
+        // --- Add user bubble ---
+        var chatResp = document.getElementById("chat-response");
+        var div = document.createElement("div");
+        div.className = "chat-bubble chat-bubble-user text-right self-end bg-blue-500 text-white";
+        div.innerText = promptText;
+        chatResp.appendChild(div);
+
+        // --- Now fetch the bot response ---
+        fetch('/api/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({prompt: promptText})
+        })
+        .then(r => r.text())
+        .then(html => {
+          document.querySelector("#chat-response").insertAdjacentHTML("beforeend", html);
+        });
+      }
+      evt.detail.target.textContent = "";
+    }
+  });
+</script>
