@@ -1,6 +1,7 @@
 import os
-from fastmcp import FastMCP, Context
+from fastmcp import FastMCP
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from treads.nanobot.client import NanobotClient
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
@@ -14,18 +15,19 @@ def render_app_template(template, context=None):
     return template.render(context or {})
 
 
-def get_prompt_dicts(ctx: Context):
+def get_prompt_dicts():
     """Helper to get all prompts as a list of dicts."""
     async def _get():
-        prompts_dict = await ctx.fastmcp.get_prompts() or {}
+        async with NanobotClient() as client:
+            prompts = await client.list_prompts() or []
         return [
             {
-                "name": name,
+                "name": getattr(prompt, "name", None),
                 "description": getattr(prompt, "description", "") or "",
                 "arguments": [arg.model_dump() for arg in getattr(prompt, "arguments", []) or []],
             }
-            for name, prompt in prompts_dict.items()
-        ], prompts_dict
+            for prompt in prompts
+        ], {getattr(prompt, "name", None): prompt for prompt in prompts}
     return _get
 
 
@@ -41,8 +43,8 @@ def register_resources(mcp: FastMCP):
         }
 
     @mcp.resource("ui://app/prompts", mime_type="application/json")
-    async def app_ui_prompts(ctx: Context):
-        get_prompts = get_prompt_dicts(ctx)
+    async def app_ui_prompts():
+        get_prompts = get_prompt_dicts()
         prompt_list, _ = await get_prompts()
         html = render_app_template("prompts.tmpl", {"prompts": prompt_list})
         return {
@@ -51,8 +53,8 @@ def register_resources(mcp: FastMCP):
         }
 
     @mcp.resource("ui://app/prompts/{prompt_name}/form", mime_type="application/json")
-    async def app_ui_prompt_form(prompt_name: str, ctx: Context):
-        get_prompts = get_prompt_dicts(ctx)
+    async def app_ui_prompt_form(prompt_name: str):
+        get_prompts = get_prompt_dicts()
         _, prompts_dict = await get_prompts()
         prompt = prompts_dict.get(prompt_name)
         if not prompt:

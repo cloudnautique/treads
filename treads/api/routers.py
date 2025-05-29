@@ -4,17 +4,13 @@ import json
 
 from fastapi import HTTPException, Body, Request, Query, APIRouter
 from fastapi.responses import JSONResponse, HTMLResponse
-from fastmcp import Client
-from fastmcp.client.transports import StreamableHttpTransport
 from fastapi.encoders import jsonable_encoder
 
 from sse_starlette.sse import EventSourceResponse
+from treads.nanobot.client import NanobotClient
 
-NANOBOT_MCP_URL = os.environ.get("NANOBOT_MCP_URL", "http://localhost:8099/mcp")
 logger = logging.getLogger("treads.api.routers")
 logging.basicConfig(level=logging.INFO)
-
-mcp_client = Client(StreamableHttpTransport(url=NANOBOT_MCP_URL))
 
 MCPRouter = APIRouter()
 TreadRouter = APIRouter()
@@ -27,7 +23,7 @@ async def get_resource(body: dict = Body(...)):
     if not uri:
         raise HTTPException(status_code=400, detail="Missing 'uri'")
     try:
-        async with Client(StreamableHttpTransport(url=NANOBOT_MCP_URL)) as client:
+        async with NanobotClient() as client:
             result = await client.read_resource(uri)
             logger.info(f"Fetched resource: {result}")
         return JSONResponse(content=jsonable_encoder(result))
@@ -39,9 +35,9 @@ async def get_resource(body: dict = Body(...)):
 @MCPRouter.get("/api/resources")
 async def list_resources():
     try:
-        async with mcp_client:
-            if hasattr(mcp_client, "list_resources"):
-                resources = await mcp_client.list_resources()
+        async with NanobotClient() as client:
+            if hasattr(client, "list_resources"):
+                resources = await client.list_resources()
             else:
                 resources = []
         return {"resources": resources}
@@ -53,9 +49,9 @@ async def list_resources():
 @MCPRouter.get("/api/tools")
 async def list_tools():
     try:
-        async with mcp_client:
-            if hasattr(mcp_client, "list_tools"):
-                tools = await mcp_client.list_tools()
+        async with NanobotClient() as client:
+            if hasattr(client, "list_tools"):
+                tools = await client.list_tools()
             else:
                 tools = []
         return {"tools": tools}
@@ -99,7 +95,7 @@ async def call_tool(
     if stream_requested:
         async def event_generator():
             try:
-                async with Client(StreamableHttpTransport(url=NANOBOT_MCP_URL)) as client:
+                async with NanobotClient() as client:
                     result = await client.call_tool(tool_name, arguments)
                     yield {
                         "event": "complete",
@@ -123,7 +119,7 @@ async def call_tool(
 
     else:
         try:
-            async with Client(StreamableHttpTransport(url=NANOBOT_MCP_URL)) as client:
+            async with NanobotClient() as client:
                 result = await client.call_tool(tool_name, arguments)
             return {"result": result}
         except Exception as e:
@@ -134,8 +130,8 @@ async def call_tool(
 @MCPRouter.get("/api/prompts")
 async def list_prompts():
     try:
-        async with mcp_client:
-            prompts = await mcp_client.list_prompts()
+        async with NanobotClient() as client:
+            prompts = await client.list_prompts()
         return {"prompts": [p for p in prompts]}
     except Exception as e:
         logger.error(f"Error listing prompts: {e}")
@@ -154,9 +150,9 @@ async def get_prompt(name: str, body: dict = Body(None)):
         else:
             arguments = body
     try:
-        async with mcp_client:
+        async with NanobotClient() as client:
             logger.info(f"[PROMPT DEBUG] Calling get_prompt with arguments: {arguments}")
-            result = await mcp_client.get_prompt(name, arguments=arguments)
+            result = await client.get_prompt(name, arguments=arguments)
         logger.info(f"[PROMPT DEBUG] get_prompt result: {result}")
         return {"result": result}
     except Exception as e:
@@ -175,8 +171,8 @@ async def get_ui_resource(body: dict = Body(...)):
     if not uri or not uri.startswith("ui://"):
         raise HTTPException(status_code=400, detail="Missing or invalid 'uri' (must start with 'ui://')")
     try:
-        async with mcp_client:
-            result = await mcp_client.read_resource(uri=uri)
+        async with NanobotClient() as client:
+            result = await client.read_resource(uri=uri)
         # result is a list of TextResourceContents-like objects
         logger.info(f"Fetched UI resource: {result}")
         for item in result:
@@ -218,7 +214,7 @@ async def chat_tool_call(body: dict = Body(...)):
     else:
         raise HTTPException(status_code=400, detail="Missing 'prompt' or invalid input format")
     try:
-        async with Client(StreamableHttpTransport(url=NANOBOT_MCP_URL)) as client:
+        async with NanobotClient() as client:
             result = await client.call_tool("app", {"prompt": prompt})
         # Expecting result as list of message dicts, just like before
         if isinstance(result, list) and result:
@@ -248,8 +244,8 @@ async def get_rendered_prompt_messages(name: str, body: dict = Body(...)):
         else:
             arguments = body
     try:
-        async with mcp_client:
-            result = await mcp_client.get_prompt(name, arguments=arguments)
+        async with NanobotClient() as client:
+            result = await client.get_prompt(name, arguments=arguments)
         # ---- Extraction logic ----
         # If result has attribute 'messages' (not dict), extract from first message
         if hasattr(result, "messages") and isinstance(result.messages, list):
