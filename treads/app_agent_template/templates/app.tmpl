@@ -27,23 +27,48 @@
       </svg>
     </button>
   </form>
-  <div id="prompts-section" class="mt-8">
-    <h3 class="text-lg font-semibold mb-2">Prompts</h3>
-    <div id="prompts-list" class="flex flex-wrap gap-2"
-         hx-post="/api/resources/ui"
-         hx-vals='{"uri": "ui://app/prompts"}'
-         hx-headers='{"Content-Type": "application/json"}'
-         hx-ext="json-enc"
-         hx-trigger="load"
-         hx-target="#prompts-list"
-         hx-swap="innerHTML">
-      <p>Loading Prompts...</p>
+  <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Prompts Section -->
+    <div id="prompts-section">
+      <h3 class="text-lg font-semibold mb-2">Prompts</h3>
+      <div id="prompts-list" class="flex flex-col gap-2"
+           hx-post="/api/resources/ui"
+           hx-vals='{"uri": "ui://app/prompts"}'
+           hx-headers='{"Content-Type": "application/json"}'
+           hx-ext="json-enc"
+           hx-trigger="load"
+           hx-target="#prompts-list"
+           hx-swap="innerHTML">
+        <p>Loading Prompts...</p>
+      </div>
     </div>
+    
+    <!-- Resource Templates Section -->
+    <div id="templates-section">
+      <h3 class="text-lg font-semibold mb-2">Resource Templates</h3>
+      <div id="templates-list" class="flex flex-col gap-2"
+           hx-get="/api/templates"
+           hx-headers='{"Accept": "text/html", "X-Template": "resource_templates"}'
+           hx-trigger="load"
+           hx-target="#templates-list"
+           hx-swap="innerHTML">
+        <p>Loading Resource Templates...</p>
+      </div>
+    </div>
+    
     <!-- Modal for prompt form -->
     <div id="prompt-form-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden">
       <div class="bg-white rounded-lg shadow-lg p-6 max-w-lg w-full relative">
         <button id="close-prompt-form" class="absolute top-2 right-2 text-gray-400 hover:text-gray-700">&times;</button>
         <div id="prompt-form-content"></div>
+      </div>
+    </div>
+    
+    <!-- Modal for template form -->
+    <div id="template-form-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden">
+      <div class="bg-white rounded-lg shadow-lg p-6 max-w-lg w-full relative">
+        <button id="close-template-form" class="absolute top-2 right-2 text-gray-400 hover:text-gray-700">&times;</button>
+        <div id="template-form-content"></div>
       </div>
     </div>
   </div>
@@ -55,21 +80,28 @@
   </div>
 </div>
 <script>
-  // Show modal when prompt form content is loaded
+  // Show modal when prompt or template form content is loaded
   document.body.addEventListener('htmx:afterSwap', function(evt) {
     if (evt.detail.target && evt.detail.target.id === "prompt-form-content") {
       document.getElementById("prompt-form-modal").classList.remove("hidden");
     }
-    // Close modal if the form was just submitted and response is swapped into #chat-input (handled by hx-on inline, but fallback here for completeness)
+    if (evt.detail.target && evt.detail.target.id === "template-form-content") {
+      document.getElementById("template-form-modal").classList.remove("hidden");
+    }
+    // Close modals if the form was just submitted and response is swapped into #chat-input
     if (evt.detail.target && evt.detail.target.id === "chat-input") {
       document.getElementById("prompt-form-modal").classList.add("hidden");
+      document.getElementById("template-form-modal").classList.add("hidden");
     }
   });
 
-  // Hide modal when close button is clicked
+  // Hide modals when close buttons are clicked
   document.addEventListener('click', function(evt) {
     if (evt.target && evt.target.id === "close-prompt-form") {
       document.getElementById("prompt-form-modal").classList.add("hidden");
+    }
+    if (evt.target && evt.target.id === "close-template-form") {
+      document.getElementById("template-form-modal").classList.add("hidden");
     }
   });
   function addUserBubble(e) {

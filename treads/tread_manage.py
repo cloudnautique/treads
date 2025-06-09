@@ -10,13 +10,20 @@ TEMPLATE_DIR = Path(__file__).parent / "project_template"
 def copy_template_dir(src, dst):
     """Recursively copy template directory from src to dst."""
     for item in src.iterdir():
+        # Skip files we don't want to copy
+        if should_skip_file(item):
+            continue
+            
         dest_item = dst / item.name
         if item.is_dir():
             dest_item.mkdir(parents=True, exist_ok=True)
             copy_template_dir(item, dest_item)
         else:
-            dest_item.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(item, dest_item)
+            try:
+                dest_item.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(item, dest_item)
+            except Exception as e:
+                print(f"Warning: Failed to copy {item} to {dest_item}: {e}")
 
 
 def create_project():
@@ -68,23 +75,95 @@ def create_agent_with_name(agent_name):
 AGENTS_DIR = Path.cwd() / "agents"
 
 
+def should_skip_file(path):
+    """Check if a file or directory should be skipped during copying."""
+    name = path.name
+    
+    # Skip directories
+    if path.is_dir():
+        return name == "__pycache__" or name == ".git" or name == ".venv" or name == "venv"
+        
+    # Skip files
+    return (
+        name.endswith(".pyc") or
+        name.endswith(".pyo") or
+        name.endswith(".pyd") or
+        name.startswith(".DS_Store") or
+        name.endswith("~") or  # Editor backup files
+        name.endswith(".swp")  # Vim swap files
+    )
+
+def is_binary_file(file_path):
+    """Check if file is binary by reading a chunk and looking for null bytes or invalid UTF-8 characters."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            f.read(1024)  # Read a chunk to check encoding
+        return False
+    except UnicodeDecodeError:
+        return True
+
 def copy_agent_template_dir(src, dst, agent_name):
     """Recursively copy agent template directory from src to dst, substituting {name}. Also copy 'templates' dir if present."""
     for item in src.iterdir():
+        # Skip files we don't want to copy
+        if should_skip_file(item):
+            continue
+            
         dest_item = dst / item.name
         if item.is_dir():
             dest_item.mkdir(parents=True, exist_ok=True)
             # If this is a 'templates' directory, copy all its contents recursively
             if item.name == "templates":
-                shutil.copytree(item, dest_item, dirs_exist_ok=True)
+                try:
+                    # Create a custom copytree function that uses our file skipping logic
+                    def custom_copy(src, dst, symlinks=False, ignore=None):
+                        os.makedirs(dst, exist_ok=True)
+                        for item in os.listdir(src):
+                            s = os.path.join(src, item)
+                            if should_skip_file(Path(s)):
+                                continue
+                                
+                            d = os.path.join(dst, item)
+                            if os.path.isdir(s):
+                                custom_copy(s, d, symlinks, ignore)
+                            else:
+                                shutil.copy2(s, d)
+                    
+                    custom_copy(str(item), str(dest_item))
+                except Exception as e:
+                    print(f"Warning: Error copying template directory {item}: {e}")
+                    # Try to continue with a file-by-file copy as fallback
+                    for template_item in item.iterdir():
+                        if should_skip_file(template_item):
+                            continue
+                        try:
+                            dest_template = dest_item / template_item.name
+                            if template_item.is_dir():
+                                shutil.copytree(template_item, dest_template, dirs_exist_ok=True)
+                            else:
+                                shutil.copyfile(template_item, dest_template)
+                        except Exception as inner_e:
+                            print(f"Warning: Failed to copy template file {template_item}: {inner_e}")
             else:
                 copy_agent_template_dir(item, dest_item, agent_name)
         else:
             dest_item.parent.mkdir(parents=True, exist_ok=True)
-            with open(item, "r") as f:
-                content = f.read().replace("{name}", agent_name)
-            with open(dest_item, "w") as out:
-                out.write(content)
+            
+            # Check if file is binary
+            if is_binary_file(item):
+                # Copy binary files directly without text processing
+                shutil.copyfile(item, dest_item)
+            else:
+                # Process text files with replacement
+                try:
+                    with open(item, "r", encoding="utf-8") as f:
+                        content = f.read().replace("{name}", agent_name)
+                    with open(dest_item, "w", encoding="utf-8") as out:
+                        out.write(content)
+                except Exception as e:
+                    # Fallback to direct copy if any error occurs
+                    print(f"Warning: Could not process {item}, copying directly: {e}")
+                    shutil.copyfile(item, dest_item)
 
 
 def create_agent():

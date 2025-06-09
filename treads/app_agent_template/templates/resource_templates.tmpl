@@ -1,0 +1,46 @@
+{# Render a list of resource templates as clickable buttons with descriptions #}
+<div class="flex flex-col gap-3">
+  {% for template in templates %}
+    <button 
+      class="template-btn bg-gray-200 hover:bg-green-100 text-gray-800 rounded px-3 py-2 text-left shadow border border-gray-300 flex flex-col items-start"
+      hx-post="/api/resources/ui"
+      hx-vals='{"uri": "ui://app/resource_templates/{{ template.name }}/form"}'
+      hx-headers='{"Content-Type": "application/json"}'
+      hx-ext="json-enc"
+      hx-target="#template-form-content"
+      hx-swap="innerHTML"
+      hx-trigger="click"
+      type="button"
+    >
+      <span class="font-semibold">{{ template.name }}</span>
+      {% if template.description %}
+        <span class="text-xs text-gray-600">{{ template.description }}</span>
+      {% endif %}
+      {% if template.uriTemplate %}
+        <span class="text-xs text-gray-500 mt-1">URI: {{ template.uriTemplate }}</span>
+      {% endif %}
+      
+      {# Extract URI parameters - without using 'do' tag #}
+      {% if template.uriTemplate %}
+        {% set parameters = [] %}
+        {% set uri_parts = template.uriTemplate.split('/') %}
+        {% set param_string = "" %}
+        
+        {% for part in uri_parts %}
+          {% if '{' in part and '}' in part %}
+            {% set param_name = part.replace('{', '').replace('}', '') %}
+            {% if param_string %}
+              {% set param_string = param_string + ", " + param_name %}
+            {% else %}
+              {% set param_string = param_name %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        
+        {% if param_string %}
+          <span class="text-xs text-green-600 mt-1">Parameters: {{ param_string }}</span>
+        {% endif %}
+      {% endif %}
+    </button>
+  {% endfor %}
+</div>
