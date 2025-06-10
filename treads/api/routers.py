@@ -257,10 +257,9 @@ async def list_resource_templates(request: Request):
         prefer_json = "application/json" in accept_header
         
         if template_name and "text/html" in accept_header:
-            # Import here to avoid circular imports
-            from treads.app_agent_template.resources import render_app_template
-            html = render_app_template(f"{template_name}.tmpl", {"templates": templates})
-            return HTMLResponse(content=html)
+            # Use the UI resource system to get rendered template
+            uri = f"ui://app/resource_templates"
+            return await _get_ui_resource_helper(uri)
         elif prefer_json:
             return {"success": True, "templates": templates}
         else:
