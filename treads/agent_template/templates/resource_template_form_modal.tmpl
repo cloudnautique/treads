@@ -1,27 +1,27 @@
-{# Modal form for submitting a resource template with user instructions #}
+{#- Modal form for submitting a resource template with user instructions -#}
 <div>
-  <form id="resource-template-form" hx-post="/api/templates/message" hx-target="#resource-proxy" hx-swap="innerHTML" hx-ext="json-enc">
+  <form id="resource-template-form" hx-post="/api/templates/messages" hx-target="#resource-proxy" hx-swap="innerHTML" hx-ext="json-enc">
     <input type="hidden" name="uri" value="{{ template.uriTemplate }}">
     <h2 class="text-lg font-semibold mb-2">{{ template.name }}</h2>
-    {% if template.description %}
+    {%- if template.description %}
       <p class="text-sm text-gray-600 mb-2">{{ template.description }}</p>
-    {% endif %}
+    {%- endif %}
     
-    {% if template.uriTemplate %}
+    {%- if template.uriTemplate %}
       <p class="text-xs text-gray-600 mb-1">URI Template: {{ template.uriTemplate }}</p>
       
-      {# Generate form fields for URI parameters extracted in Python #}
+      {#- Generate form fields for URI parameters extracted in Python -#}
       <div class="mt-3 mb-3 p-2 bg-gray-50 rounded-md border border-gray-200">
         <h3 class="text-sm font-medium text-gray-700 mb-2">URI Parameters</h3>
-        {% if uri_params and uri_params|length > 0 %}
-          {% for param in uri_params %}
+        {%- if uri_params and uri_params|length > 0 %}
+          {%- for param in uri_params %}
             <div class="mb-2">
               <label 
                 for="param-{{ param.name }}" 
                 class="block text-xs font-medium text-gray-700 mb-1"
               >
                 {{ param.name }}
-                {% if not param.required %}<span class="text-gray-400"> (optional)</span>{% endif %}
+                {%- if not param.required %}<span class="text-gray-400"> (optional)</span>{%- endif %}
               </label>
               <input 
                 id="param-{{ param.name }}"
@@ -29,32 +29,32 @@
                 name="{{ param.name }}" 
                 class="w-full border rounded px-2 py-1 text-sm" 
                 placeholder="Enter {{ param.name }}..." 
-                {% if param.required %}required{% endif %}
+                {%- if param.required %} required{%- endif %}
               />
             </div>
-          {% endfor %}
-        {% else %}
+          {%- endfor %}
+        {%- else %}
           <p class="text-xs text-gray-500">No URI parameters required</p>
-        {% endif %}
+        {%- endif %}
       </div>
-    {% endif %}
+    {%- endif %}
     
     <div class="mb-3">
       <label for="instructions" class="block text-xs font-medium text-gray-700 mb-1">Instructions for the AI agent</label>
       <textarea id="instructions" name="instructions" class="w-full border rounded px-2 py-1 text-sm" rows="3" placeholder="e.g. Summarize the PR comments and contributors..."></textarea>
     </div>
     
-    {% if template.arguments and template.arguments|length > 0 %}
+    {%- if template.arguments and template.arguments|length > 0 %}
       <div class="mt-3 mb-3">
         <h3 class="text-sm font-medium text-gray-700 mb-2">Additional Parameters</h3>
-        {% for arg in template.arguments %}
+        {%- for arg in template.arguments %}
           <div class="mb-2">
             <label for="arg-{{ arg.name }}" class="block text-xs font-medium text-gray-700 mb-1">{{ arg.name }}</label>
             <input id="arg-{{ arg.name }}" type="text" name="{{ arg.name }}" class="w-full border rounded px-2 py-1 text-sm" placeholder="{{ arg.description or arg.name }}" />
           </div>
-        {% endfor %}
+        {%- endfor %}
       </div>
-    {% endif %}
+    {%- endif %}
     <div class="flex justify-end gap-2 mt-4">
       <button type="button" class="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 text-gray-700" onclick="document.getElementById('template-form-modal').classList.add('hidden')">Cancel</button>
       <button type="submit" class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white" onclick="updateResourceUri();">Submit</button>

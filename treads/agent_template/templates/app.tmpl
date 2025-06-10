@@ -1,4 +1,4 @@
-{% block content %}
+{%- block content %}
 <div class="flex flex-col gap-6 mt-6">
   <form id="chat-form"
       class="flex items-center shadow-sm rounded-lg overflow-hidden border border-gray-200" autocomplete="off"
@@ -73,10 +73,10 @@
     </div>
   </div>
   <div id="chat-response" class="min-h-[3rem] p-4 bg-gray-50 rounded-lg text-gray-800 shadow-sm border border-gray-100 flex flex-col gap-2">
-    <!-- Chat response will be swapped in here by HTMX -->
-    {% if chat_input %}
+    {#- Chat response will be swapped in here by HTMX -#}
+    {%- if chat_input %}
       <div data-rendered-prompt style="display:none;">{{ chat_input }}</div>
-    {% endif %}
+    {%- endif %}
   </div>
 </div>
 <script>
@@ -123,4 +123,4 @@
     }
   });
 </script>
-{% endblock %}
+{%- endblock %}

@@ -196,7 +196,7 @@ async def _get_ui_resource_helper(uri: str):
             try:
                 parsed = json.loads(text)
                 logger.info(f"Parsed resource text: {parsed}")
-                html_string = parsed.get("content", {}).get("htmlString")
+                html_string = parsed.get("content", {}).get("text")
                 if html_string:
                     break
             except Exception as e:
@@ -244,6 +244,7 @@ async def list_resource_templates(request: Request):
                 templates = await client.list_resource_templates()
             else:
                 templates = []
+
         # Remove UI templates if any are present
         filtered_templates = []
         for t in templates:
@@ -251,20 +252,17 @@ async def list_resource_templates(request: Request):
                 filtered_templates.append(t)
         templates = filtered_templates
 
-        # Check for X-Template header for template rendering
-        template_name = request.headers.get("X-Template")
         accept_header = request.headers.get("Accept", "")
         prefer_json = "application/json" in accept_header
         
-        if template_name and "text/html" in accept_header:
-            # Use the UI resource system to get rendered template
-            uri = f"ui://app/resource_templates"
-            return await _get_ui_resource_helper(uri)
-        elif prefer_json:
-            return {"success": True, "templates": templates}
+        uri = f"ui://app/resource_templates"
+        html = await _get_ui_resource_helper(uri)
+
+        if prefer_json:
+            return {"success": True, "templates": html.body}
         else:
-            # Default to HTML for backward compatibility
-            return {"templates": templates}
+            return html
+
     except Exception as e:
         logger.error(f"Error listing resource templates: {e}")
         accept_header = request.headers.get("Accept", "")
@@ -394,7 +392,7 @@ async def get_rendered_prompt_messages(request: Request, name: str, body: dict =
             raise HTTPException(status_code=502, detail=str(e))
 
 
-@TreadRouter.post("/api/templates/message")
+@TreadRouter.post("/api/templates/messages")
 async def get_resource_with_instructions(request: Request, body: dict = Body(...)):
     """
     Accepts a URI directly in the request body along with optional user instructions.

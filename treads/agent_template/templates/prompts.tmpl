@@ -1,6 +1,6 @@
-{# Render a list of prompts as clickable buttons with descriptions #}
+{#- Render a list of prompts as clickable buttons with descriptions -#}
 <div class="flex flex-col gap-3">
-  {% for prompt in prompts %}
+  {%- for prompt in prompts %}
     <button 
       class="prompt-btn bg-gray-200 hover:bg-blue-100 text-gray-800 rounded px-3 py-2 text-left shadow border border-gray-300 flex flex-col items-start"
       hx-post="/api/resources/ui"
@@ -13,12 +13,12 @@
       type="button"
     >
       <span class="font-semibold">{{ prompt.name }}</span>
-      {% if prompt.description %}
+      {%- if prompt.description %}
         <span class="text-xs text-gray-600">{{ prompt.description }}</span>
-      {% endif %}
-      {% if prompt.arguments and prompt.arguments|length > 0 %}
+      {%- endif %}
+      {%- if prompt.arguments and prompt.arguments|length > 0 %}
         <span class="text-xs text-gray-500 mt-1">Args: {{ prompt.arguments|map(attribute='name')|join(', ') }}</span>
-      {% endif %}
+      {%- endif %}
     </button>
-  {% endfor %}
+  {%- endfor %}
 </div>
