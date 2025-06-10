@@ -57,11 +57,8 @@ def create_project():
 def create_agent_with_name(agent_name):
     agent_dir = Path.cwd() / "agents" / agent_name
     agent_dir.mkdir(parents=True, exist_ok=True)
-    # Use dedicated template for 'app' agent
-    if agent_name == "app":
-        agent_template_dir = Path(__file__).parent / "app_agent_template"
-    else:
-        agent_template_dir = Path(__file__).parent / "agent_template"
+    # Use the unified agent template for all agents
+    agent_template_dir = Path(__file__).parent / "agent_template"
     if not agent_template_dir.exists():
         print(
             f"Agent template directory {agent_template_dir} not found. Please ensure it exists in the package and is included as package data."
@@ -109,13 +106,16 @@ def copy_agent_template_dir(src, dst, agent_name):
         if should_skip_file(item):
             continue
             
-        dest_item = dst / item.name
+        # Handle filename substitution - replace {name} in filenames
+        dest_name = item.name.replace("{name}", agent_name)
+        dest_item = dst / dest_name
+        
         if item.is_dir():
             dest_item.mkdir(parents=True, exist_ok=True)
-            # If this is a 'templates' directory, copy all its contents recursively
+            # If this is a 'templates' directory, copy all its contents recursively with filename substitution
             if item.name == "templates":
                 try:
-                    # Create a custom copytree function that uses our file skipping logic
+                    # Create a custom copytree function that uses our file skipping logic and filename substitution
                     def custom_copy(src, dst, symlinks=False, ignore=None):
                         os.makedirs(dst, exist_ok=True)
                         for item in os.listdir(src):
@@ -123,11 +123,26 @@ def copy_agent_template_dir(src, dst, agent_name):
                             if should_skip_file(Path(s)):
                                 continue
                                 
-                            d = os.path.join(dst, item)
+                            # Apply filename substitution
+                            dest_filename = item.replace("{name}", agent_name)
+                            d = os.path.join(dst, dest_filename)
                             if os.path.isdir(s):
                                 custom_copy(s, d, symlinks, ignore)
                             else:
-                                shutil.copy2(s, d)
+                                # Copy file with content substitution
+                                if is_binary_file(Path(s)):
+                                    shutil.copy2(s, d)
+                                else:
+                                    try:
+                                        with open(s, "r", encoding="utf-8") as f:
+                                            content = f.read().replace("{name}", agent_name)
+                                        with open(d, "w", encoding="utf-8") as out:
+                                            out.write(content)
+                                        # Copy file metadata
+                                        shutil.copystat(s, d)
+                                    except Exception as e:
+                                        print(f"Warning: Could not process {s}, copying directly: {e}")
+                                        shutil.copy2(s, d)
                     
                     custom_copy(str(item), str(dest_item))
                 except Exception as e:
@@ -137,11 +152,22 @@ def copy_agent_template_dir(src, dst, agent_name):
                         if should_skip_file(template_item):
                             continue
                         try:
-                            dest_template = dest_item / template_item.name
+                            dest_template_name = template_item.name.replace("{name}", agent_name)
+                            dest_template = dest_item / dest_template_name
                             if template_item.is_dir():
                                 shutil.copytree(template_item, dest_template, dirs_exist_ok=True)
                             else:
-                                shutil.copyfile(template_item, dest_template)
+                                if is_binary_file(template_item):
+                                    shutil.copyfile(template_item, dest_template)
+                                else:
+                                    try:
+                                        with open(template_item, "r", encoding="utf-8") as f:
+                                            content = f.read().replace("{name}", agent_name)
+                                        with open(dest_template, "w", encoding="utf-8") as out:
+                                            out.write(content)
+                                    except Exception as inner_e:
+                                        print(f"Warning: Could not process {template_item}, copying directly: {inner_e}")
+                                        shutil.copyfile(template_item, dest_template)
                         except Exception as inner_e:
                             print(f"Warning: Failed to copy template file {template_item}: {inner_e}")
             else:

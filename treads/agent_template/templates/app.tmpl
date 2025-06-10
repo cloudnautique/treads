@@ -33,7 +33,7 @@
       <h3 class="text-lg font-semibold mb-2">Prompts</h3>
       <div id="prompts-list" class="flex flex-col gap-2"
            hx-post="/api/resources/ui"
-           hx-vals='{"uri": "ui://app/prompts"}'
+           hx-vals='{"uri": "ui://{name}/prompts"}'
            hx-headers='{"Content-Type": "application/json"}'
            hx-ext="json-enc"
            hx-trigger="load"

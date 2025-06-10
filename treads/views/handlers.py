@@ -11,7 +11,7 @@ class ResourceHandlers:
         """Helper to render template with configured directory."""
         return render_template(template_name, context, self.template_dir)
     
-    def app_page(self, page: str):
+    def get_page(self, page: str):
         """Render a simple app page."""
         html = self._render(f"{page}.html")
         return {

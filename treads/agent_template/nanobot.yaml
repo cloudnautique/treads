@@ -2,7 +2,7 @@ publish:
   tools: [{name}]
   prompts: [{name}_tools]
   resources: [{name}_tools]
-  resourcesTemplates: [{name}_tools]
+  resourceTemplates: [{name}_tools]
 
 agents:
   {name}:
@@ -15,6 +15,6 @@ mcpServers:
   {name}_tools:
     command: "uv"
     args:
-    - "run"
-    - "--active"
-    - "tools.py"
+      - "run"
+      - "--active"
+      - "tools.py"

@@ -4,7 +4,7 @@
     <button 
       class="template-btn bg-gray-200 hover:bg-green-100 text-gray-800 rounded px-3 py-2 text-left shadow border border-gray-300 flex flex-col items-start"
       hx-post="/api/resources/ui"
-      hx-vals='{"uri": "ui://app/resource_templates/{{ template.name }}/form"}'
+      hx-vals='{"uri": "ui://{name}/resource_templates/{{ template.name }}/form"}'
       hx-headers='{"Content-Type": "application/json"}'
       hx-ext="json-enc"
       hx-target="#template-form-content"
