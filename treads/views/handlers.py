@@ -15,19 +15,19 @@ class ResourceHandlers:
         """Initialize handlers with optional template directory."""
         self.template_dir = template_dir
     
-    def _render(self, template_name, context=None):
-        """Helper to render template with configured directory."""
+    def render_template(self, template_name, context=None):
+        """Render template with configured directory."""
         return render_template(template_name, context, self.template_dir)
     
     def get_page(self, page: str):
         """Render a simple app page."""
-        html = self._render(f"{page}.html")
+        html = self.render_template(f"{page}.html")
         return HTMLTextType(html).to_dict()
     
     async def prompts_list(self, template="prompts.tmpl"):
         """Render the prompts list page."""
         prompt_list, _ = await PromptService.get_prompts()
-        html = self._render(template, {"prompts": prompt_list})
+        html = self.render_template(template, {"prompts": prompt_list})
         return HTMLTextType(html).to_dict()
     
     async def prompt_form(self, prompt_name: str, template="prompt_form_modal.tmpl"):
@@ -43,14 +43,14 @@ class ResourceHandlers:
                 "description": prompt.description if hasattr(prompt, 'description') and prompt.description else "",
                 "arguments": [arg.model_dump() for arg in prompt.arguments] if hasattr(prompt, 'arguments') and prompt.arguments else [],
             }
-            html = self._render(template, {"prompt": prompt_dict})
+            html = self.render_template(template, {"prompt": prompt_dict})
         
         return HTMLTextType(html).to_dict()
     
     async def templates_list(self, template="resource_templates.tmpl"):
         """Render the resource templates list page."""
         template_list, _ = await TemplateService.get_templates()
-        html = self._render(template, {"templates": template_list})
+        html = self.render_template(template, {"templates": template_list})
         return HTMLTextType(html).to_dict()
     
     async def template_form(self, template_name: str, template: str = "resource_template_form_modal.tmpl"): 
@@ -68,7 +68,7 @@ class ResourceHandlers:
                 "uriTemplate": resource_template.uriTemplate if hasattr(resource_template, 'uriTemplate') else None,
             }
             uri_params = extract_uri_params(resource_template.uriTemplate)
-            html = self._render(template, {
+            html = self.render_template(template, {
                 "template": template_dict, 
                 "uri_params": uri_params
             })

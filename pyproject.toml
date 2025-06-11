@@ -26,6 +26,4 @@ treads = [
     "project_template/**/*",
     "agent_template/*",
     "agent_template/**/*",
-    "app_agent_template/*",
-    "app_agent_template/**/*",
 ]
