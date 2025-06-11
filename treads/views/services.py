@@ -24,6 +24,16 @@ class PromptService:
         
         return prompt_list, prompts_dict
 
+    @staticmethod
+    async def get_prompt(prompt_name: str):
+        """Get a specific prompt by name."""
+        _, prompts_dict = await PromptService.get_prompts()
+        prompt = prompts_dict.get(prompt_name)
+        if not prompt:
+            raise ValueError(f"Prompt '{prompt_name}' not found.") 
+        else:
+            return prompt
+
 
 class TemplateService:
     @staticmethod
@@ -48,3 +58,13 @@ class TemplateService:
                 templates_dict[name] = template
         
         return template_list, templates_dict
+
+    @staticmethod
+    async def get_template(template_name: str):
+        """Get a specific resource template by name."""
+        _, templates_dict = await TemplateService.get_templates()
+        resource_template = templates_dict.get(template_name)
+        if not resource_template:
+            raise ValueError(f"Template '{template_name}' not found.")
+        else:
+            return resource_template

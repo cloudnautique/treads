@@ -1,6 +1,7 @@
 import os
 from fastmcp import FastMCP
 from treads.views.handlers import ResourceHandlers
+from treads.views.services import PromptService, TemplateService
 
 
 def register_resources(mcp: FastMCP):
@@ -21,7 +22,8 @@ def register_resources(mcp: FastMCP):
 
     @mcp.resource("ui://{name}/prompts/{prompt_name}/form", mime_type="application/json")
     async def {name}_ui_prompt_form(prompt_name: str):
-        return await handlers.prompt_form(prompt_name)
+        prompt = await PromptService.get_prompt(prompt_name)
+        return await handlers.prompt_form(context=prompt)
 
     @mcp.resource("ui://{name}/resource_templates", mime_type="application/json")
     async def {name}_ui_resource_templates():
@@ -29,4 +31,5 @@ def register_resources(mcp: FastMCP):
 
     @mcp.resource("ui://{name}/resource_templates/{template_name}/form", mime_type="application/json")
     async def {name}_ui_resource_template_form(template_name: str):
-        return await handlers.template_form(template_name)
+        template = await TemplateService.get_template(template_name)
+        return await handlers.template_form(context=template)

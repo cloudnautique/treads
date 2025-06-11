@@ -30,20 +30,12 @@ class ResourceHandlers:
         html = self.render_template(template, {"prompts": prompt_list})
         return HTMLTextType(html).to_dict()
     
-    async def prompt_form(self, prompt_name: str, template="prompt_form_modal.tmpl"):
+    async def prompt_form(self, template="prompt_form_modal.tmpl", context=None):
         """Render a specific prompt form."""
-        _, prompts_dict = await PromptService.get_prompts()
-        prompt = prompts_dict.get(prompt_name)
-        
-        if not prompt:
-            html = f"<div class='text-red-500'>Prompt '{prompt_name}' not found.</div>"
+        if not context:
+            html = f"<div class='text-red-500'>Prompt not found.</div>"
         else:
-            prompt_dict = {
-                "name": prompt_name,
-                "description": prompt.description if hasattr(prompt, 'description') and prompt.description else "",
-                "arguments": [arg.model_dump() for arg in prompt.arguments] if hasattr(prompt, 'arguments') and prompt.arguments else [],
-            }
-            html = self.render_template(template, {"prompt": prompt_dict})
+            html = self.render_template(template, {"prompt": context})
         
         return HTMLTextType(html).to_dict()
     
@@ -53,23 +45,14 @@ class ResourceHandlers:
         html = self.render_template(template, {"templates": template_list})
         return HTMLTextType(html).to_dict()
     
-    async def template_form(self, template_name: str, template: str = "resource_template_form_modal.tmpl"): 
+    async def template_form(self, template: str = "resource_template_form_modal.tmpl", context=None): 
         """Render a specific template form."""
-        _, templates_dict = await TemplateService.get_templates()
-        resource_template = templates_dict.get(template_name)
-        
-        if not resource_template:
-            html = f"<div class='text-red-500'>Template '{template_name}' not found.</div>"
+        if not context:
+            html = f"<div class='text-red-500'>Template not found.</div>"
         else:
-            template_dict = {
-                "name": template_name,
-                "description": resource_template.description if hasattr(resource_template, 'description') and resource_template.description else "",
-                "arguments": [arg.model_dump() for arg in resource_template.arguments] if hasattr(resource_template, 'arguments') and resource_template.arguments else [],
-                "uriTemplate": resource_template.uriTemplate if hasattr(resource_template, 'uriTemplate') else None,
-            }
-            uri_params = extract_uri_params(resource_template.uriTemplate)
+            uri_params = extract_uri_params(context.uriTemplate)
             html = self.render_template(template, {
-                "template": template_dict, 
+                "template": context, 
                 "uri_params": uri_params
             })
         
