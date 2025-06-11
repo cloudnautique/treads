@@ -212,6 +212,12 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
         
         logger.info(f"[DEBUG] Raw response from tool: type={type(response)}, value={repr(response)}")
         
+        # Unwrap response if it has an extra "response" wrapper
+        if isinstance(response, dict) and len(response) == 1 and "response" in response:
+            logger.info(f"[DEBUG] Unwrapping extra 'response' wrapper")
+            response = response["response"]
+            logger.info(f"[DEBUG] Unwrapped response: {response}")
+        
         # Handle structured data vs text for template rendering
         if isinstance(response, (dict, list)):
             # For structured data, pass both the raw data and a formatted version
