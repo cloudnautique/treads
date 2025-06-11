@@ -32,7 +32,7 @@ class PromptService:
         if not prompt:
             raise ValueError(f"Prompt '{prompt_name}' not found.") 
         else:
-            return prompt
+            return prompt.model_dump() if hasattr(prompt, 'model_dump') else prompt.__dict__.copy()
 
 
 class TemplateService:
@@ -67,4 +67,4 @@ class TemplateService:
         if not resource_template:
             raise ValueError(f"Template '{template_name}' not found.")
         else:
-            return resource_template
+            return resource_template.model_dump() if hasattr(resource_template, 'model_dump') else resource_template.__dict__.copy()
