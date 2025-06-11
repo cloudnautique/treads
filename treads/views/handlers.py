@@ -1,5 +1,5 @@
 from treads.views.services import PromptService, TemplateService
-from treads.views.template_utils import render_template, extract_uri_params
+from treads.views.template_utils import render_template, extract_uri_params, get_template_content
 
 
 class HTMLTextType:
@@ -24,6 +24,10 @@ class ResourceHandlers:
         html = self.render_template(f"{page}.html")
         return HTMLTextType(html).to_dict()
     
+    def get_template_content(self, template_name: str) -> str:
+        """Get the raw template content without rendering."""
+        return get_template_content(template_name, self.template_dir)
+
     async def prompts_list(self, template="prompts.tmpl"):
         """Render the prompts list page."""
         prompt_list, _ = await PromptService.get_prompts()
