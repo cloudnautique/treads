@@ -28,7 +28,7 @@ class PromptService:
 class TemplateService:
     @staticmethod
     async def get_templates():
-        """Get all resource templates, returning (list, dict) tuple."""
+        """Get all resource templates, returning (list, dict) tuple. Does not include UI templates."""
         async with NanobotClient() as client:
             templates = await client.list_resource_templates() or []
         

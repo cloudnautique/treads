@@ -1,67 +1,67 @@
 {#- Modal form for submitting a resource template with user instructions -#}
 <div>
-  <form id="resource-template-form" hx-post="/api/templates/messages" hx-target="#resource-proxy" hx-swap="innerHTML" hx-ext="json-enc">
+  <form id="resource-template-form" class="resource-template-form" hx-post="/api/templates/messages" hx-target="#resource-proxy" hx-swap="innerHTML" hx-ext="json-enc">
     <input type="hidden" name="uri" value="{{ template.uriTemplate }}">
-    <h2 class="text-lg font-semibold mb-2">{{ template.name }}</h2>
+    <h2 class="form-title">{{ template.name }}</h2>
     {%- if template.description %}
-      <p class="text-sm text-gray-600 mb-2">{{ template.description }}</p>
+      <p class="form-description">{{ template.description }}</p>
     {%- endif %}
     
     {%- if template.uriTemplate %}
-      <p class="text-xs text-gray-600 mb-1">URI Template: {{ template.uriTemplate }}</p>
+      <p class="uri-template-info">URI Template: {{ template.uriTemplate }}</p>
       
       {#- Generate form fields for URI parameters extracted in Python -#}
-      <div class="mt-3 mb-3 p-2 bg-gray-50 rounded-md border border-gray-200">
-        <h3 class="text-sm font-medium text-gray-700 mb-2">URI Parameters</h3>
+      <div class="uri-params-container">
+        <h3 class="uri-params-title">URI Parameters</h3>
         {%- if uri_params and uri_params|length > 0 %}
           {%- for param in uri_params %}
-            <div class="mb-2">
+            <div class="param-field">
               <label 
                 for="param-{{ param.name }}" 
-                class="block text-xs font-medium text-gray-700 mb-1"
+                class="param-label"
               >
                 {{ param.name }}
-                {%- if not param.required %}<span class="text-gray-400"> (optional)</span>{%- endif %}
+                {%- if not param.required %}<span class="param-optional"> (optional)</span>{%- endif %}
               </label>
               <input 
                 id="param-{{ param.name }}"
                 type="text" 
                 name="{{ param.name }}" 
-                class="w-full border rounded px-2 py-1 text-sm" 
+                class="param-input" 
                 placeholder="Enter {{ param.name }}..." 
                 {%- if param.required %} required{%- endif %}
               />
             </div>
           {%- endfor %}
         {%- else %}
-          <p class="text-xs text-gray-500">No URI parameters required</p>
+          <p class="no-params-message">No URI parameters required</p>
         {%- endif %}
       </div>
     {%- endif %}
     
-    <div class="mb-3">
-      <label for="instructions" class="block text-xs font-medium text-gray-700 mb-1">Instructions for the AI agent</label>
-      <textarea id="instructions" name="instructions" class="w-full border rounded px-2 py-1 text-sm" rows="3" placeholder="e.g. Summarize the PR comments and contributors..."></textarea>
+    <div class="instructions-container">
+      <label for="instructions" class="instructions-label">Instructions for the AI agent</label>
+      <textarea id="instructions" name="instructions" class="instructions-textarea" rows="3" placeholder="e.g. Summarize the PR comments and contributors..."></textarea>
     </div>
     
     {%- if template.arguments and template.arguments|length > 0 %}
-      <div class="mt-3 mb-3">
-        <h3 class="text-sm font-medium text-gray-700 mb-2">Additional Parameters</h3>
+      <div class="additional-params-container">
+        <h3 class="additional-params-title">Additional Parameters</h3>
         {%- for arg in template.arguments %}
-          <div class="mb-2">
-            <label for="arg-{{ arg.name }}" class="block text-xs font-medium text-gray-700 mb-1">{{ arg.name }}</label>
-            <input id="arg-{{ arg.name }}" type="text" name="{{ arg.name }}" class="w-full border rounded px-2 py-1 text-sm" placeholder="{{ arg.description or arg.name }}" />
+          <div class="arg-field">
+            <label for="arg-{{ arg.name }}" class="arg-label">{{ arg.name }}</label>
+            <input id="arg-{{ arg.name }}" type="text" name="{{ arg.name }}" class="arg-input" placeholder="{{ arg.description or arg.name }}" />
           </div>
         {%- endfor %}
       </div>
     {%- endif %}
-    <div class="flex justify-end gap-2 mt-4">
-      <button type="button" class="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 text-gray-700" onclick="document.getElementById('template-form-modal').classList.add('hidden')">Cancel</button>
-      <button type="submit" class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white" onclick="updateResourceUri();">Submit</button>
+    <div class="button-container">
+      <button type="button" class="btn-cancel" onclick="document.getElementById('template-form-modal').classList.add('hidden')">Cancel</button>
+      <button type="submit" class="btn-submit" onclick="updateResourceUri();">Submit</button>
     </div>
   </form>
   
-  <div id="resource-proxy" style="display:none"></div>
+  <div id="resource-proxy" class="resource-proxy"></div>
   
   <script>
     document.body.addEventListener('htmx:afterSwap', function(evt) {
@@ -78,7 +78,7 @@
           
           const chatResp = document.getElementById("chat-response");
           const userDiv = document.createElement("div");
-          userDiv.className = "chat-bubble chat-bubble-user text-right self-end bg-blue-500 text-white";
+          userDiv.className = "chat-bubble-user";
           userDiv.innerText = promptText;
           chatResp.appendChild(userDiv);
           

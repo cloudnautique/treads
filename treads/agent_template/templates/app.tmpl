@@ -48,7 +48,6 @@
       <h3 class="text-lg font-semibold mb-2">Resource Templates</h3>
       <div id="templates-list" class="flex flex-col gap-2"
            hx-get="/api/templates"
-           hx-headers='{"Accept": "text/html", "X-Template": "resource_templates"}'
            hx-trigger="load"
            hx-target="#templates-list"
            hx-swap="innerHTML">

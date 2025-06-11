@@ -53,22 +53,22 @@ class ResourceHandlers:
         html = self._render(template, {"templates": template_list})
         return HTMLTextType(html).to_dict()
     
-    async def template_form(self, template_name: str):
+    async def template_form(self, template_name: str, template: str = "resource_template_form_modal.tmpl"): 
         """Render a specific template form."""
         _, templates_dict = await TemplateService.get_templates()
-        template = templates_dict.get(template_name)
+        resource_template = templates_dict.get(template_name)
         
-        if not template:
+        if not resource_template:
             html = f"<div class='text-red-500'>Template '{template_name}' not found.</div>"
         else:
             template_dict = {
                 "name": template_name,
-                "description": template.description if hasattr(template, 'description') and template.description else "",
-                "arguments": [arg.model_dump() for arg in template.arguments] if hasattr(template, 'arguments') and template.arguments else [],
-                "uriTemplate": template.uriTemplate if hasattr(template, 'uriTemplate') else None,
+                "description": resource_template.description if hasattr(resource_template, 'description') and resource_template.description else "",
+                "arguments": [arg.model_dump() for arg in resource_template.arguments] if hasattr(resource_template, 'arguments') and resource_template.arguments else [],
+                "uriTemplate": resource_template.uriTemplate if hasattr(resource_template, 'uriTemplate') else None,
             }
-            uri_params = extract_uri_params(template.uriTemplate)
-            html = self._render("resource_template_form_modal.tmpl", {
+            uri_params = extract_uri_params(resource_template.uriTemplate)
+            html = self._render(template, {
                 "template": template_dict, 
                 "uri_params": uri_params
             })
