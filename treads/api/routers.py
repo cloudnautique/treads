@@ -210,26 +210,41 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
         
         response = await handle_client_operation(f"invoke_{agent}", chat_operation)
         
+        logger.info(f"[DEBUG] Raw response from tool: type={type(response)}, value={repr(response)}")
+        
         # Handle structured data vs text for template rendering
         if isinstance(response, (dict, list)):
             # For structured data, pass both the raw data and a formatted version
             response_data = response
             response_formatted = json.dumps(response, indent=2)
             response_for_json = response
+            logger.info(f"[DEBUG] Structured data detected - response_data: {response_data}")
+            logger.info(f"[DEBUG] Formatted version: {response_formatted}")
         else:
             # For text responses, use as-is
             response_data = response
             response_formatted = str(response)
             response_for_json = response
+            logger.info(f"[DEBUG] Text data detected - response_data: {response_data}")
         
-        # Render agent-specific view with context
-        rendered_html = await render_agent_view(agent, "chat_response", {
+        template_context = {
             "response": response_data,  # Raw structured data for template access
             "response_formatted": response_formatted,  # Pretty-printed version for display
             "agent": agent,
             "prompt": prompt,
             "timestamp": datetime.now().isoformat()
-        })
+        }
+        
+        logger.info(f"[DEBUG] Template context keys: {list(template_context.keys())}")
+        logger.info(f"[DEBUG] Template context['response'] type: {type(template_context['response'])}")
+        if isinstance(template_context['response'], dict):
+            logger.info(f"[DEBUG] Dict keys: {list(template_context['response'].keys())}")
+        
+        # Render agent-specific view with context
+        rendered_html = await render_agent_view(agent, "chat_response", template_context)
+        
+        logger.info(f"[DEBUG] Rendered HTML length: {len(rendered_html)}")
+        logger.info(f"[DEBUG] Rendered HTML preview: {rendered_html[:200]}...")
         
         html_response = HTMLResponse(rendered_html)
         
