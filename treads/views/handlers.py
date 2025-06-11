@@ -50,7 +50,7 @@ class ResourceHandlers:
         if not context:
             html = f"<div class='text-red-500'>Template not found.</div>"
         else:
-            uri_params = extract_uri_params(context.uriTemplate)
+            uri_params = extract_uri_params(context["uriTemplate"])
             html = self.render_template(template, {
                 "template": context, 
                 "uri_params": uri_params

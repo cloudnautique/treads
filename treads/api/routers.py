@@ -1,6 +1,6 @@
-import os
 import logging
 import json
+from datetime import datetime
 
 from fastapi import HTTPException, Body, Request, Query, APIRouter
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -8,6 +8,20 @@ from fastapi.encoders import jsonable_encoder
 
 from sse_starlette.sse import EventSourceResponse
 from treads.nanobot.client import NanobotClient
+from treads.api.helper import (
+    handle_client_operation,
+    handle_client_list_operation,
+    extract_arguments_from_body,
+    prefers_json,
+    create_error_response,
+    create_success_response,
+    extract_prompt_from_body,
+    extract_text_response_from_tool_result,
+    extract_text_from_prompt_result,
+    extract_text_from_resource_result,
+    get_agent_view_snippet,
+    render_snippet_with_context,
+)
 
 logger = logging.getLogger("treads.api.routers")
 logging.basicConfig(level=logging.INFO)
@@ -22,154 +36,58 @@ async def get_resource(body: dict = Body(...)):
     uri = body.get("uri")
     if not uri:
         raise HTTPException(status_code=400, detail="Missing 'uri'")
-    try:
-        async with NanobotClient() as client:
-            result = await client.read_resource(uri)
-            logger.info(f"Fetched resource: {result}")
-        return JSONResponse(content=jsonable_encoder(result))
-    except Exception as e:
-        logger.error(f"Error fetching resource: {e}")
-        raise HTTPException(status_code=502, detail=str(e))
+    
+    async def read_operation(client):
+        result = await client.read_resource(uri)
+        logger.info(f"Fetched resource: {result}")
+        return result
+    
+    result = await handle_client_operation("get_resource", read_operation)
+    return JSONResponse(content=jsonable_encoder(result))
 
 
 @MCPRouter.get("/api/resources")
 async def list_resources():
-    try:
-        async with NanobotClient() as client:
-            if hasattr(client, "list_resources"):
-                resources = await client.list_resources()
-            else:
-                resources = []
-        return {"resources": resources}
-    except Exception as e:
-        logger.error(f"Error listing resources: {e}")
-        raise HTTPException(status_code=502, detail=str(e))
+    return await handle_client_list_operation("list_resources", "list_resources", "resources")
+
 
 @MCPRouter.get("/api/resource-templates")
-async def list_resource_templates():
-    try:
-        async with NanobotClient() as client:
-            if hasattr(client, "list_resource_templates"):
-                templates = await client.list_resource_templates()
-            else:
-                templates = []
-        return {"templates": templates}
-    except Exception as e:
-        logger.error(f"Error listing resource templates: {e}")
-        raise HTTPException(status_code=502, detail=str(e))
+async def list_resource_templates_mcp():
+    return await handle_client_list_operation("list_resource_templates", "list_resource_templates", "templates")
+
 
 @MCPRouter.get("/api/tools")
 async def list_tools():
-    try:
-        async with NanobotClient() as client:
-            if hasattr(client, "list_tools"):
-                tools = await client.list_tools()
-            else:
-                tools = []
-        return {"tools": tools}
-    except Exception as e:
-        logger.error(f"Error listing tools: {e}")
-        raise HTTPException(status_code=502, detail=str(e))
-
-
-@MCPRouter.post("/api/tools")
-async def call_tool(
-    request: Request,
-    body: dict = Body(...),
-    stream: int = Query(0)
-):
-    call = body.get("params")
-    if call is None:
-        # If not present, try to build params from flat form (HTMX form submission)
-        # Accept prompt as the only argument for now
-        prompt = body.get("prompt")
-        if prompt is not None:
-            call = {
-                "name": "app",
-                "arguments": {"prompt": prompt},
-                "_meta": {}
-            }
-        else:
-            raise HTTPException(status_code=400, detail="Missing 'params' or 'prompt' in request body")
-    tool_name = call.get("name")
-    arguments = call.get("arguments", {})
-
-    if not tool_name:
-        raise HTTPException(status_code=400, detail="Missing 'name'")
-
-    # Determine if streaming is requested
-    stream_requested = (
-        stream == 1
-        or request.headers.get("x-stream", "0") == "1"
-        or body.get("stream", False)
-    )
-
-    if stream_requested:
-        async def event_generator():
-            try:
-                async with NanobotClient() as client:
-                    result = await client.call_tool(tool_name, arguments)
-                    yield {
-                        "event": "complete",
-                        "data": jsonable_encoder(result)
-                    }
-            except Exception as e:
-                yield {
-                    "event": "error",
-                    "data": str(e)
-                }
-
-        return EventSourceResponse(
-            event_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no"
-            }
-        )
-
-    else:
-        try:
-            async with NanobotClient() as client:
-                result = await client.call_tool(tool_name, arguments)
-            return {"result": result}
-        except Exception as e:
-            logger.error(f"Tool call failed: {e}")
-            raise HTTPException(status_code=502, detail=str(e))
+    return await handle_client_list_operation("list_tools", "list_tools", "tools")
 
 
 @MCPRouter.get("/api/prompts")
 async def list_prompts():
-    try:
-        async with NanobotClient() as client:
-            prompts = await client.list_prompts()
-        return {"prompts": [p for p in prompts]}
-    except Exception as e:
-        logger.error(f"Error listing prompts: {e}")
-        raise HTTPException(status_code=502, detail=str(e))
+    async def list_operation(client):
+        prompts = await client.list_prompts()
+        return [p for p in prompts]
+    
+    result = await handle_client_operation("list_prompts", list_operation, "prompts")
+    return result
 
 
 @MCPRouter.post("/api/prompts/{name}")
 async def get_prompt(name: str, body: dict = Body(None)):
     logger.info(f"[PROMPT DEBUG] Received body: {body}")
-    arguments = {}
-    if body:
-        if "params" in body and isinstance(body["params"], dict) and "arguments" in body["params"]:
-            arguments = body["params"]["arguments"]
-        elif "arguments" in body:
-            arguments = body["arguments"]
-        else:
-            arguments = body
-    try:
-        async with NanobotClient() as client:
-            logger.info(f"[PROMPT DEBUG] Calling get_prompt with arguments: {arguments}")
-            result = await client.get_prompt(name, arguments=arguments)
+    arguments = extract_arguments_from_body(body)
+    
+    async def prompt_operation(client):
+        logger.info(f"[PROMPT DEBUG] Calling get_prompt with arguments: {arguments}")
+        result = await client.get_prompt(name, arguments=arguments)
         logger.info(f"[PROMPT DEBUG] get_prompt result: {result}")
+        return result
+    
+    try:
+        result = await handle_client_operation("get_prompt", prompt_operation)
         return {"result": result}
-    except Exception as e:
-        logger.error(f"Prompt fetch failed: {e}")
-        raise HTTPException(status_code=502, detail=f"{str(e)}: input: {arguments}")
+    except HTTPException as e:
+        # Add more context to the error
+        raise HTTPException(status_code=e.status_code, detail=f"{e.detail}: input: {arguments}")
 
 # TreadRouter endpoints
 
@@ -219,6 +137,8 @@ async def get_ui_resource(body: dict):
     Always returns HTML content.
     """
     uri = body.get("uri")
+    if not uri:
+        raise HTTPException(status_code=400, detail="Missing 'uri' parameter")
     return await _get_ui_resource_helper(uri)
 
 @TreadRouter.post("/api/resources/ui")
@@ -229,167 +149,130 @@ async def get_ui_resource_endpoint(request: Request, body: dict = Body(...)):
     Always returns HTML content.
     """
     uri = body.get("uri")
+    if not uri:
+        raise HTTPException(status_code=400, detail="Missing 'uri' parameter")
     return await _get_ui_resource_helper(uri)
 
 
 @TreadRouter.get("/api/templates")
-async def list_resource_templates(request: Request):
+async def list_resource_templates_tread(request: Request):
     """
     Lists non-UI resource templates.
     Returns a JSON object with 'templates' key containing a list of templates or renders as HTML with a template.
     """
+    prefer_json = prefers_json(request)
+    
     try:
-        async with NanobotClient() as client:
+        # Get templates and filter out UI ones
+        async def get_filtered_templates(client):
             if hasattr(client, "list_resource_templates"):
                 templates = await client.list_resource_templates()
             else:
                 templates = []
-
-        # Remove UI templates if any are present
-        filtered_templates = []
-        for t in templates:
-            if not hasattr(t, "uriTemplate") or not t.uriTemplate.startswith("ui://"):
-                filtered_templates.append(t)
-        templates = filtered_templates
-
-        accept_header = request.headers.get("Accept", "")
-        prefer_json = "application/json" in accept_header
+            
+            # Remove UI templates if any are present
+            filtered_templates = []
+            for t in templates:
+                if not hasattr(t, "uriTemplate") or not t.uriTemplate.startswith("ui://"):
+                    filtered_templates.append(t)
+            return filtered_templates
+        
+        templates = await handle_client_operation("list_resource_templates", get_filtered_templates)
         
         uri = f"ui://app/resource_templates"
         html = await _get_ui_resource_helper(uri)
 
-        if prefer_json:
-            return {"success": True, "templates": html.body}
-        else:
-            return html
+        return create_success_response(
+            {"templates": html.body if hasattr(html, 'body') else str(html)},
+            prefer_json,
+            html
+        )
 
     except Exception as e:
         logger.error(f"Error listing resource templates: {e}")
-        accept_header = request.headers.get("Accept", "")
-        prefer_json = "application/json" in accept_header
-        if prefer_json:
-            return {"success": False, "error": str(e), "templates": []}
-        else:
-            raise HTTPException(status_code=502, detail=str(e))
+        return create_error_response(str(e), prefer_json, templates=[])
 
-@TreadRouter.post("/api/chat")
-async def chat_tool_call(request: Request, body: dict = Body(...)):
+@TreadRouter.post("/api/{agent}/invoke")
+async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
     """
-    Calls the 'app' tool with a prompt and returns only the text response as HTML <p>...</p>.
-    Accepts either {"prompt": "..."} or the full JSON-RPC style: {"method": "tools/call", "params": {"name": "app", "arguments": {"prompt": "..."}}}
+    Invokes an agent with a prompt and returns a customizable response.
+    Uses agent-specific view snippets from ui://{agent}/chat_response if available.
     """
-    # Support both direct and JSON-RPC style input
-    logger.info(f"BODY RECEIVED: {body}")
-    if "prompt" in body:
-        prompt = body["prompt"]
-    elif body.get("method") == "tools/call" and "params" in body:
-        params = body["params"]
-        if params.get("name") == "app" and "arguments" in params and "prompt" in params["arguments"]:
-            prompt = params["arguments"]["prompt"]
-        else:
-            raise HTTPException(status_code=400, detail="Invalid params for chat tool call")
-    else:
-        raise HTTPException(status_code=400, detail="Missing 'prompt' or invalid input format")
+    logger.info(f"INVOKING AGENT '{agent}' WITH BODY: {body}")
     
-    accept_header = request.headers.get("Accept", "")
-    prefer_json = "application/json" in accept_header
+    # Extract prompt using helper function
+    prompt = extract_prompt_from_body(body)
+    prefer_json = prefers_json(request)
     
     try:
-        async with NanobotClient() as client:
+        async def chat_operation(client):
             result = await client.call_tool("app", {"prompt": prompt})
+            return extract_text_response_from_tool_result(result)
         
-        # Expecting result as list of message dicts, just like before
-        response_text = None
-        if isinstance(result, list) and result:
-            for item in result:
-                item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
-                item_text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
-                if item_type == "text" and item_text:
-                    response_text = item_text
-                    break
+        response_text = await handle_client_operation(f"invoke_{agent}", chat_operation)
         
-        if not response_text:
-            response_text = "No response"
+        # Get agent-specific view snippet
+        snippet_html = await get_agent_view_snippet(agent, "chat_response")
         
-        if prefer_json:
-            return {"success": True, "response": response_text, "prompt": prompt}
-        else:
-            # Return a generic class (not Tailwind-specific), e.g.:
-            return HTMLResponse(
-                f'''
-                <div class="chat-bubble chat-bubble-bot">{response_text}</div>
-                '''
-            )
+        # Render with context
+        rendered_html = render_snippet_with_context(snippet_html, {
+            "response": response_text,
+            "agent": agent,
+            "prompt": prompt,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        html_response = HTMLResponse(rendered_html)
+        
+        return create_success_response(
+            {"response": response_text, "prompt": prompt, "agent": agent},
+            prefer_json,
+            html_response
+        )
+        
     except Exception as e:
-        logger.error(f"Chat tool call failed: {e}")
-        if prefer_json:
-            return {"success": False, "error": str(e), "prompt": prompt}
-        else:
-            raise HTTPException(status_code=502, detail=str(e))
+        logger.error(f"Agent '{agent}' invocation failed: {e}")
+        
+        # Get agent-specific error snippet
+        error_snippet_html = await get_agent_view_snippet(agent, "error_response")
+        
+        # Render error with context
+        error_rendered_html = render_snippet_with_context(error_snippet_html, {
+            "error": str(e),
+            "agent": agent,
+            "prompt": prompt,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return create_error_response(
+            str(e), 
+            prefer_json, 
+            error_rendered_html,
+            prompt=prompt,
+            agent=agent
+        )
 
 @TreadRouter.post("/api/prompts/{name}/messages")
 async def get_rendered_prompt_messages(request: Request, name: str, body: dict = Body(...)):
-    arguments = {}
-    if body:
-        if "params" in body and isinstance(body["params"], dict) and "arguments" in body["params"]:
-            arguments = body["params"]["arguments"]
-        elif "arguments" in body:
-            arguments = body["arguments"]
-        else:
-            arguments = body
-    
-    accept_header = request.headers.get("Accept", "")
-    prefer_json = "application/json" in accept_header
+    arguments = extract_arguments_from_body(body)
+    prefer_json = prefers_json(request)
     
     try:
-        async with NanobotClient() as client:
+        async def prompt_operation(client):
             result = await client.get_prompt(name, arguments=arguments)
+            return extract_text_from_prompt_result(result)
         
-        # ---- Extraction logic ----
-        extracted_text = None
+        extracted_text = await handle_client_operation("get_rendered_prompt_messages", prompt_operation)
         
-        # If result has attribute 'messages' (not dict), extract from first message
-        if hasattr(result, "messages") and isinstance(result.messages, list):
-            first_msg = result.messages[0]
-            # For objects like PromptMessage, get .content and then .text
-            if hasattr(first_msg, "content") and hasattr(first_msg.content, "text"):
-                extracted_text = first_msg.content.text
-            # Fallback for dict style
-            elif isinstance(first_msg, dict):
-                content = first_msg.get("content")
-                if isinstance(content, dict):
-                    text = content.get("text")
-                    if text:
-                        extracted_text = text
-        # If result is a dict with 'messages'
-        elif isinstance(result, dict) and "messages" in result:
-            msgs = result["messages"]
-            if isinstance(msgs, list) and msgs:
-                msg = msgs[0]
-                content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
-                if content:
-                    text = content.get("text") if isinstance(content, dict) else getattr(content, "text", None)
-                    if text:
-                        extracted_text = text
-        # If already string, just return
-        elif isinstance(result, str):
-            extracted_text = result
-        
-        # As a last resort, return stringified version
-        if not extracted_text:
-            extracted_text = str(result)
-        
-        if prefer_json:
-            return {"success": True, "content": extracted_text, "prompt_name": name, "arguments": arguments}
-        else:
-            return HTMLResponse(extracted_text)
+        return create_success_response(
+            {"content": extracted_text, "prompt_name": name, "arguments": arguments},
+            prefer_json,
+            HTMLResponse(extracted_text)
+        )
             
     except Exception as e:
         logger.error(f"Prompt rendered messages fetch failed: {e}")
-        if prefer_json:
-            return {"success": False, "error": str(e), "prompt_name": name, "arguments": arguments}
-        else:
-            raise HTTPException(status_code=502, detail=str(e))
+        return create_error_response(str(e), prefer_json, prompt_name=name, arguments=arguments)
 
 
 @TreadRouter.post("/api/templates/messages")
@@ -400,84 +283,118 @@ async def get_resource_with_instructions(request: Request, body: dict = Body(...
     """
     uri = body.get("uri")
     instructions = body.get("instructions", "")
-    
-    accept_header = request.headers.get("Accept", "")
-    prefer_json = "application/json" in accept_header
+    prefer_json = prefers_json(request)
     
     if not uri:
         logger.error("Missing required 'uri' parameter")
-        if prefer_json:
-            return {"success": False, "error": "Missing required parameter: uri", "uri": None}
-        else:
-            return HTMLResponse(f'<div class="chat-bubble chat-bubble-bot text-red-500">Missing required parameter: uri</div>')
+        error_template = '<div class="chat-bubble chat-bubble-bot text-red-500">Missing required parameter: uri</div>'
+        return create_error_response(
+            "Missing required parameter: uri", 
+            prefer_json, 
+            error_template, 
+            uri=None
+        )
     
-    # Now fetch the resource using the provided URI
     try:
         logger.info(f"Fetching resource from URI: {uri}")
-        async with NanobotClient() as client:
+        
+        async def resource_operation(client):
             result = await client.read_resource(uri=uri)
-        
-        logger.info(f"Resource result: {result}")
-        
-        # Process the resource and instructions
-        prompt_text = None
-        if isinstance(result, list) and result:
-            # Find the first text resource
-            content = None
-            for item in result:
-                if hasattr(item, "text"):
-                    content = getattr(item, "text")
-                    break
+            logger.info(f"Resource result: {result}")
             
-            if content:
-                content_obj = None
-                try:
-                    # Try to parse as JSON
-                    content_obj = json.loads(content)
-                except json.JSONDecodeError:
-                    # If not JSON, use the raw content as text
-                    logger.info("Content is not JSON, treating as plain text")
-                    content_obj = {"text": content}
-                except Exception as e:
-                    logger.error(f"Error processing content: {e}")
-                    if prefer_json:
-                        return {"success": False, "error": f"Error processing content: {str(e)}", "uri": uri}
-                    else:
-                        return HTMLResponse(f'<div class="chat-bubble chat-bubble-bot text-red-500">Error processing content: {str(e)}</div>')
-                
-                if content_obj:
-                    # Format the prompt for the chat agent
-                    prompt_text = f"Resource from {uri}:\n\n"
-                    
-                    if isinstance(content_obj, dict):
-                        if "text" in content_obj:
-                            prompt_text += content_obj["text"]
-                        else:
-                            prompt_text += json.dumps(content_obj, indent=2)
-                    else:
-                        prompt_text += str(content_obj)
-                    
-                    # Add the instructions if provided
-                    if instructions:
-                        prompt_text += f"\n\nInstructions: {instructions}"
+            # Extract text content from the resource
+            extracted_content = extract_text_from_resource_result(result)
+            
+            if extracted_content:
+                # Format the prompt for the chat agent
+                prompt_text = f"Resource from {uri}:\n\n{extracted_content}"
+                if instructions:
+                    prompt_text += f"\n\nInstructions: {instructions}"
+                return prompt_text
+            else:
+                # Return a generic message if we couldn't extract content
+                return f"I'd like to know about the resource at {uri} {instructions}"
         
-        # If we couldn't extract text or there was no proper response, return a generic message
-        if not prompt_text:
-            prompt_text = f"I'd like to know about the resource at {uri} {instructions}"
+        prompt_text = await handle_client_operation("get_resource_with_instructions", resource_operation)
         
-        if prefer_json:
-            return {"success": True, "content": prompt_text, "uri": uri, "instructions": instructions}
-        else:
-            # Return the prompt text to be displayed in the user bubble
-            # The frontend will use this to make a chat request
-            return HTMLResponse(prompt_text)
+        return create_success_response(
+            {"content": prompt_text, "uri": uri, "instructions": instructions},
+            prefer_json,
+            HTMLResponse(prompt_text)
+        )
             
     except Exception as e:
         logger.error(f"Error processing resource request: {e}")
-        if prefer_json:
-            return {"success": False, "error": str(e), "uri": uri, "instructions": instructions}
+        error_template = '<div class="chat-bubble chat-bubble-bot text-red-500">Error retrieving resource: {error}</div>'
+        return create_error_response(str(e), prefer_json, error_template, uri=uri, instructions=instructions)
+
+@MCPRouter.post("/api/tools")
+async def call_tool(
+    request: Request,
+    body: dict = Body(...),
+    stream: int = Query(0)
+):
+    call = body.get("params")
+    if call is None:
+        # If not present, try to build params from flat form (HTMX form submission)
+        # Accept prompt as the only argument for now
+        prompt = body.get("prompt")
+        if prompt is not None:
+            call = {
+                "name": "app",
+                "arguments": {"prompt": prompt},
+                "_meta": {}
+            }
         else:
-            return HTMLResponse(f'Error retrieving resource: {str(e)}')
+            raise HTTPException(status_code=400, detail="Missing 'params' or 'prompt' in request body")
+    
+    if not call:
+        raise HTTPException(status_code=400, detail="Missing call parameters")
+        
+    tool_name = call.get("name")
+    arguments = call.get("arguments", {})
+
+    if not tool_name:
+        raise HTTPException(status_code=400, detail="Missing 'name'")
+
+    # Determine if streaming is requested
+    stream_requested = (
+        stream == 1
+        or request.headers.get("x-stream", "0") == "1"
+        or body.get("stream", False)
+    )
+
+    if stream_requested:
+        async def event_generator():
+            try:
+                async with NanobotClient() as client:
+                    result = await client.call_tool(tool_name, arguments)
+                    yield {
+                        "event": "complete",
+                        "data": jsonable_encoder(result)
+                    }
+            except Exception as e:
+                yield {
+                    "event": "error",
+                    "data": str(e)
+                }
+
+        return EventSourceResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+
+    else:
+        async def tool_operation(client):
+                    return await client.call_tool(tool_name, arguments)
+        
+        result = await handle_client_operation("call_tool", tool_operation)
+        return {"result": result}
 
 # Export routers for use in main app
 __all__ = ["MCPRouter", "TreadRouter", "get_ui_resource"]

@@ -2,7 +2,7 @@
 <div class="flex flex-col gap-6 mt-6">
   <form id="chat-form"
       class="flex items-center shadow-sm rounded-lg overflow-hidden border border-gray-200" autocomplete="off"
-      hx-post="/api/chat"
+      hx-post="/api/{name}/invoke"
       hx-trigger="submit"
       hx-ext="json-enc"
       hx-headers='{"Content-Type": "application/json"}'
