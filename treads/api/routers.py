@@ -208,11 +208,21 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
             result = await client.call_tool("app", {"prompt": prompt})
             return extract_text_response_from_tool_result(result)
         
-        response_text = await handle_client_operation(f"invoke_{agent}", chat_operation)
+        response = await handle_client_operation(f"invoke_{agent}", chat_operation)
+        
+        # Handle structured data vs text for template rendering
+        if isinstance(response, (dict, list)):
+            # For structured data, serialize it for display but also keep it structured for JSON responses
+            response_for_template = json.dumps(response, indent=2)
+            response_for_json = response
+        else:
+            # For text responses, use as-is
+            response_for_template = str(response)
+            response_for_json = response
         
         # Render agent-specific view with context
         rendered_html = await render_agent_view(agent, "chat_response", {
-            "response": response_text,
+            "response": response_for_template,
             "agent": agent,
             "prompt": prompt,
             "timestamp": datetime.now().isoformat()
@@ -221,7 +231,7 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
         html_response = HTMLResponse(rendered_html)
         
         return create_success_response(
-            {"response": response_text, "prompt": prompt, "agent": agent},
+            {"response": response_for_json, "prompt": prompt, "agent": agent},
             prefer_json,
             html_response
         )

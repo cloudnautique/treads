@@ -16,7 +16,7 @@ Request/Response Helpers:
 
 Data Extraction:
 - extract_prompt_from_body: Extracts prompts from different request formats
-- extract_text_response_from_tool_result: Gets text from tool call results
+- extract_text_response_from_tool_result: Gets response from tool call results (preserves structured data)
 - extract_text_from_prompt_result: Gets text from prompt results with multiple formats
 - extract_text_from_resource_result: Extracts text content from resource results
 """
@@ -143,14 +143,24 @@ def extract_prompt_from_body(body: dict) -> str:
         raise HTTPException(status_code=400, detail="Missing 'prompt' or invalid input format")
 
 
-def extract_text_response_from_tool_result(result: Any) -> str:
-    """Extract text response from tool call result."""
+def extract_text_response_from_tool_result(result: Any) -> Any:
+    """Extract response from tool call result, preserving structured data."""
     if isinstance(result, list) and result:
         for item in result:
             item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
             item_text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
             if item_type == "text" and item_text:
-                return item_text
+                # Try to parse as JSON first to preserve structured data
+                try:
+                    parsed_data = json.loads(item_text)
+                    # If it's a dict or list, return the structured data
+                    if isinstance(parsed_data, (dict, list)):
+                        return parsed_data
+                    # Otherwise return the original text
+                    return item_text
+                except (json.JSONDecodeError, TypeError):
+                    # If not valid JSON, return as text
+                    return item_text
     return "No response"
 
 
