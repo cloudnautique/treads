@@ -209,51 +209,95 @@ def extract_text_from_resource_result(result: Any) -> Optional[str]:
     return None
 
 
-async def get_agent_view_snippet(agent_name: str, snippet_name: str, fallback_html: Optional[str] = None) -> str:
+async def get_agent_template(agent_name: str, snippet_name: str, fallback_template: Optional[str] = None) -> str:
     """
-    Get a view snippet for an agent, falling back to default if not found.
+    Get a Jinja2 template for an agent, falling back to default if not found.
     
     Args:
         agent_name: Name of the agent
         snippet_name: Name of the snippet (e.g., 'chat_response')
-        fallback_html: Default HTML to use if no snippet found
+        fallback_template: Default template to use if no snippet found
     
     Returns:
-        HTML string for the snippet
+        Jinja2 template string (not rendered)
     """
-    uri = f"ui://{agent_name}/{snippet_name}"
+    # Try agent-specific template first, then app default
+    uris_to_try = [
+        f"ui://{agent_name}/{snippet_name}",
+        f"ui://app/{snippet_name}" if agent_name != "app" else None
+    ]
     
-    try:
-        async with NanobotClient() as client:
-            result = await client.read_resource(uri=uri)
-        
-        # Extract HTML from resource result
-        html_content = extract_text_from_resource_result(result)
-        if html_content:
-            # Try to parse as JSON resource first
-            try:
-                parsed = json.loads(html_content)
-                if isinstance(parsed, dict) and "content" in parsed:
-                    return parsed["content"].get("text", html_content)
-                return html_content
-            except json.JSONDecodeError:
-                # Plain HTML snippet
-                return html_content
-                
-    except Exception as e:
-        logger.debug(f"Agent snippet not found at {uri}: {e}")
+    for uri in uris_to_try:
+        if uri is None:
+            continue
+            
+        try:
+            async with NanobotClient() as client:
+                result = await client.read_resource(uri=uri)
+            
+            # Extract template content from resource result
+            template_content = extract_text_from_resource_result(result)
+            if template_content:
+                # Try to parse as JSON resource first
+                try:
+                    parsed = json.loads(template_content)
+                    if isinstance(parsed, dict) and "content" in parsed:
+                        return parsed["content"].get("text", template_content)
+                    return template_content
+                except json.JSONDecodeError:
+                    # Plain template string
+                    return template_content
+                    
+        except Exception as e:
+            logger.debug(f"Agent template not found at {uri}: {e}")
+            continue
     
     # Return fallback or default
-    if fallback_html:
-        return fallback_html
+    if fallback_template:
+        return fallback_template
     
-    # Default snippets
+    # Default templates
     defaults = {
-        "chat_response": '<div class="chat-bubble chat-bubble-bot">{response}</div>',
-        "error_response": '<div class="chat-bubble chat-bubble-bot text-red-500">Error: {error}</div>'
+        "chat_response": '<div class="chat-bubble chat-bubble-bot">{{ response }}</div>',
+        "error_response": '<div class="chat-bubble chat-bubble-bot text-red-500">Error: {{ error }}</div>'
     }
     
-    return defaults.get(snippet_name, '<div>{content}</div>')
+    return defaults.get(snippet_name, '<div>{{ content }}</div>')
+
+
+async def render_agent_view(agent_name: str, snippet_name: str, context: dict) -> str:
+    """
+    Render an agent view with context data using Jinja2.
+    
+    Args:
+        agent_name: Name of the agent
+        snippet_name: Name of the snippet (e.g., 'chat_response')
+        context: Dictionary of variables to pass to the template
+    
+    Returns:
+        Rendered HTML string
+    """
+    from jinja2 import Environment, BaseLoader, TemplateSyntaxError
+    
+    # Get the template content
+    template_content = await get_agent_template(agent_name, snippet_name)
+    
+    try:
+        # Create a Jinja2 environment with a string loader
+        env = Environment(loader=BaseLoader())
+        template = env.from_string(template_content)
+        
+        # Render the template with context
+        return template.render(context)
+        
+    except TemplateSyntaxError as e:
+        logger.error(f"Template syntax error in {agent_name}/{snippet_name}: {e}")
+        # Fall back to simple string replacement
+        return render_snippet_with_context(template_content, context)
+    except Exception as e:
+        logger.error(f"Error rendering template {agent_name}/{snippet_name}: {e}")
+        # Fall back to simple string replacement  
+        return render_snippet_with_context(template_content, context)
 
 
 def render_snippet_with_context(snippet_html: str, context: dict) -> str:

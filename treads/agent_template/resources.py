@@ -33,3 +33,34 @@ def register_resources(mcp: FastMCP):
     async def {name}_ui_resource_template_form(template_name: str):
         template = await TemplateService.get_template(template_name)
         return await handlers.template_form(context=template)
+
+    @mcp.resource("ui://{name}/chat_response", mime_type="application/json",
+                  description="Custom chat response template for {name} agent")
+    def {name}_chat_response():
+        # Return a simple JSON structure with the Jinja2 template
+        return {
+            "content": {
+                "text": '''<div class="chat-bubble chat-bubble-bot bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-lg">
+  <div class="flex items-center gap-2 mb-1">
+    <span class="text-blue-600 font-semibold text-xs uppercase">{name} Agent</span>
+    <span class="text-xs text-gray-500">{{ timestamp }}</span>
+  </div>
+  <div class="text-gray-800">{{ response }}</div>
+</div>'''
+            }
+        }
+
+    @mcp.resource("ui://{name}/error_response", mime_type="application/json",
+                  description="Custom error response template for {name} agent")  
+    def {name}_error_response():
+        return {
+            "content": {
+                "text": '''<div class="chat-bubble chat-bubble-bot bg-red-50 border-l-4 border-red-400 p-3 rounded-r-lg">
+  <div class="flex items-center gap-2 mb-1">
+    <span class="text-red-600 font-semibold text-xs uppercase">{name} Agent - Error</span>
+    <span class="text-xs text-gray-500">{{ timestamp }}</span>
+  </div>
+  <div class="text-red-800">{{ error }}</div>
+</div>'''
+            }
+        }

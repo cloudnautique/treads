@@ -19,8 +19,7 @@ from treads.api.helper import (
     extract_text_response_from_tool_result,
     extract_text_from_prompt_result,
     extract_text_from_resource_result,
-    get_agent_view_snippet,
-    render_snippet_with_context,
+    render_agent_view,
 )
 
 logger = logging.getLogger("treads.api.routers")
@@ -211,11 +210,8 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
         
         response_text = await handle_client_operation(f"invoke_{agent}", chat_operation)
         
-        # Get agent-specific view snippet
-        snippet_html = await get_agent_view_snippet(agent, "chat_response")
-        
-        # Render with context
-        rendered_html = render_snippet_with_context(snippet_html, {
+        # Render agent-specific view with context
+        rendered_html = await render_agent_view(agent, "chat_response", {
             "response": response_text,
             "agent": agent,
             "prompt": prompt,
@@ -233,11 +229,8 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
     except Exception as e:
         logger.error(f"Agent '{agent}' invocation failed: {e}")
         
-        # Get agent-specific error snippet
-        error_snippet_html = await get_agent_view_snippet(agent, "error_response")
-        
-        # Render error with context
-        error_rendered_html = render_snippet_with_context(error_snippet_html, {
+        # Render agent-specific error snippet
+        error_rendered_html = await render_agent_view(agent, "error_response", {
             "error": str(e),
             "agent": agent,
             "prompt": prompt,
@@ -251,6 +244,7 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
             prompt=prompt,
             agent=agent
         )
+
 
 @TreadRouter.post("/api/prompts/{name}/messages")
 async def get_rendered_prompt_messages(request: Request, name: str, body: dict = Body(...)):
