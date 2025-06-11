@@ -212,17 +212,20 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
         
         # Handle structured data vs text for template rendering
         if isinstance(response, (dict, list)):
-            # For structured data, serialize it for display but also keep it structured for JSON responses
-            response_for_template = json.dumps(response, indent=2)
+            # For structured data, pass both the raw data and a formatted version
+            response_data = response
+            response_formatted = json.dumps(response, indent=2)
             response_for_json = response
         else:
             # For text responses, use as-is
-            response_for_template = str(response)
+            response_data = response
+            response_formatted = str(response)
             response_for_json = response
         
         # Render agent-specific view with context
         rendered_html = await render_agent_view(agent, "chat_response", {
-            "response": response_for_template,
+            "response": response_data,  # Raw structured data for template access
+            "response_formatted": response_formatted,  # Pretty-printed version for display
             "agent": agent,
             "prompt": prompt,
             "timestamp": datetime.now().isoformat()

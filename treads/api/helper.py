@@ -293,7 +293,13 @@ async def get_agent_template(agent_name: str, snippet_name: str, fallback_templa
     
     # Default templates
     defaults = {
-        "chat_response": '<div class="chat-bubble chat-bubble-bot">{{ response }}</div>',
+        "chat_response": '''<div class="chat-bubble chat-bubble-bot">
+{%- if response is mapping or response is sequence and response is not string %}
+  <pre style="background: #f5f5f5; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 12px;">{{ response_formatted }}</pre>
+{%- else %}
+  {{ response }}
+{%- endif %}
+</div>''',
         "error_response": '<div class="chat-bubble chat-bubble-bot text-red-500">Error: {{ error }}</div>'
     }
     
