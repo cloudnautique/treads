@@ -145,6 +145,25 @@ def extract_prompt_from_body(body: dict) -> str:
 
 def extract_text_response_from_tool_result(result: Any) -> Any:
     """Extract response from tool call result, preserving structured data."""
+    
+    # Handle direct result object with .type and .text attributes (like your ctx.sample result)
+    if hasattr(result, "type") and hasattr(result, "text"):
+        if result.type == "text":
+            try:
+                parsed_data = json.loads(result.text)
+                # If it's a dict or list, return the structured data
+                if isinstance(parsed_data, (dict, list)):
+                    return parsed_data
+                # Otherwise return the original text
+                return result.text
+            except (json.JSONDecodeError, TypeError):
+                # If not valid JSON, return as text
+                return result.text
+        else:
+            # For non-text types, return the text anyway if available
+            return getattr(result, "text", str(result))
+    
+    # Handle list of items (original pattern)
     if isinstance(result, list) and result:
         for item in result:
             item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
@@ -161,7 +180,13 @@ def extract_text_response_from_tool_result(result: Any) -> Any:
                 except (json.JSONDecodeError, TypeError):
                     # If not valid JSON, return as text
                     return item_text
-    return "No response"
+    
+    # If result is already structured data, return as-is
+    if isinstance(result, (dict, list)):
+        return result
+    
+    # Fallback - try to convert to string
+    return str(result) if result is not None else "No response"
 
 
 def extract_text_from_prompt_result(result: Any) -> str:
