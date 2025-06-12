@@ -17,7 +17,13 @@ create_project = "treads.tread_manage:create_project"
 dev = "treads.tread_manage:dev"
 
 [tool.setuptools]
-packages = ["treads", "treads.api","treads.nanobot","treads.views"]
+packages = [
+    "treads",
+    "treads.api",
+    "treads.nanobot",
+    "treads.views",
+    "treads.config"
+]
 include-package-data = true
 
 [tool.setuptools.package-data]
