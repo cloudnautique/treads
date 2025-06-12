@@ -1,5 +1,6 @@
 from treads.views.services import PromptService, TemplateService
-from treads.views.template_utils import render_template, extract_uri_params, get_template_content
+from treads.views.template_utils import extract_uri_params
+from treads.views.jinja_env import get_jinja_env
 
 
 class HTMLTextType:
@@ -16,8 +17,9 @@ class ResourceHandlers:
         self.template_dir = template_dir
     
     def render_template(self, template_name, context=None):
-        """Render template with configured directory."""
-        return render_template(template_name, context, self.template_dir)
+        """Render template using the global Jinja environment."""
+        jinja_env = get_jinja_env()
+        return jinja_env.render_template(template_name, context, self.template_dir)
     
     def get_page(self, page: str):
         """Render a simple app page."""
@@ -26,7 +28,8 @@ class ResourceHandlers:
     
     def get_template_content(self, template_name: str) -> str:
         """Get the raw template content without rendering."""
-        return get_template_content(template_name, self.template_dir)
+        jinja_env = get_jinja_env()
+        return jinja_env.get_template_content(template_name, self.template_dir)
 
     async def prompts_list(self, template="prompts.tmpl"):
         """Render the prompts list page."""
