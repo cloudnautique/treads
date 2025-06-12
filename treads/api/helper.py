@@ -146,72 +146,48 @@ def extract_prompt_from_body(body: dict) -> str:
 def extract_text_response_from_tool_result(result: Any) -> Any:
     """Extract response from tool call result, preserving structured data."""
     
-    logger.info(f"[DEBUG] extract_text_response_from_tool_result called with result type: {type(result)}")
-    logger.info(f"[DEBUG] result repr: {repr(result)}")
-    
     # Handle direct result object with .type and .text attributes (like your ctx.sample result)
     if hasattr(result, "type") and hasattr(result, "text"):
-        logger.info(f"[DEBUG] Found direct object with .type='{result.type}' and .text")
-        logger.info(f"[DEBUG] .text content: {repr(result.text)}")
-        
         if result.type == "text":
             try:
                 parsed_data = json.loads(result.text)
-                logger.info(f"[DEBUG] Successfully parsed JSON, type: {type(parsed_data)}")
-                logger.info(f"[DEBUG] Parsed data: {parsed_data}")
-                
                 # If it's a dict or list, return the structured data
                 if isinstance(parsed_data, (dict, list)):
-                    logger.info(f"[DEBUG] Returning structured data: {parsed_data}")
                     return parsed_data
                 # Otherwise return the original text
-                logger.info(f"[DEBUG] Not dict/list, returning original text: {result.text}")
                 return result.text
-            except (json.JSONDecodeError, TypeError) as e:
-                logger.info(f"[DEBUG] JSON parsing failed: {e}, returning text: {result.text}")
+            except (json.JSONDecodeError, TypeError):
                 # If not valid JSON, return as text
                 return result.text
         else:
-            logger.info(f"[DEBUG] Non-text type, returning text attribute or string")
             # For non-text types, return the text anyway if available
             return getattr(result, "text", str(result))
     
     # Handle list of items (original pattern)
     if isinstance(result, list) and result:
-        logger.info(f"[DEBUG] Found list with {len(result)} items")
-        for i, item in enumerate(result):
-            logger.info(f"[DEBUG] Item {i}: type={type(item)}, repr={repr(item)}")
+        for item in result:
             item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
             item_text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
-            logger.info(f"[DEBUG] Item {i}: extracted type='{item_type}', text='{item_text}'")
             
             if item_type == "text" and item_text:
                 # Try to parse as JSON first to preserve structured data
                 try:
                     parsed_data = json.loads(item_text)
-                    logger.info(f"[DEBUG] Item {i}: Successfully parsed JSON: {parsed_data}")
-                    
                     # If it's a dict or list, return the structured data
                     if isinstance(parsed_data, (dict, list)):
-                        logger.info(f"[DEBUG] Item {i}: Returning structured data from list")
                         return parsed_data
                     # Otherwise return the original text
-                    logger.info(f"[DEBUG] Item {i}: Not dict/list, returning text")
                     return item_text
-                except (json.JSONDecodeError, TypeError) as e:
-                    logger.info(f"[DEBUG] Item {i}: JSON parsing failed: {e}")
+                except (json.JSONDecodeError, TypeError):
                     # If not valid JSON, return as text
                     return item_text
     
     # If result is already structured data, return as-is
     if isinstance(result, (dict, list)):
-        logger.info(f"[DEBUG] Result is already structured data: {result}")
         return result
     
     # Fallback - try to convert to string
-    fallback = str(result) if result is not None else "No response"
-    logger.info(f"[DEBUG] Using fallback: {fallback}")
-    return fallback
+    return str(result) if result is not None else "No response"
 
 
 def extract_text_from_prompt_result(result: Any) -> str:
@@ -316,7 +292,7 @@ async def get_agent_template(agent_name: str, snippet_name: str, fallback_templa
     if fallback_template:
         return fallback_template
     
-    # Default templates
+    # Default templates - expanded to handle more response types
     defaults = {
         "chat_response": '''<div class="chat-bubble chat-bubble-bot">
 {%- if response is mapping or response is sequence and response is not string %}
@@ -325,10 +301,37 @@ async def get_agent_template(agent_name: str, snippet_name: str, fallback_templa
   {{ response }}
 {%- endif %}
 </div>''',
-        "error_response": '<div class="chat-bubble chat-bubble-bot text-red-500">Error: {{ error }}</div>'
+        "error_response": '<div class="chat-bubble chat-bubble-bot text-red-500">Error: {{ error }}</div>',
+        # Additional default templates for common response types
+        "table_response": '''<div class="chat-bubble chat-bubble-bot">
+  <div class="overflow-x-auto">
+    <table class="min-w-full bg-white border border-gray-200">
+      {{ response_formatted }}
+    </table>
+  </div>
+</div>''',
+        "code_response": '''<div class="chat-bubble chat-bubble-bot">
+  <pre class="bg-gray-100 p-3 rounded border overflow-x-auto"><code>{{ response }}</code></pre>
+</div>''',
+        "json_response": '''<div class="chat-bubble chat-bubble-bot">
+  <pre class="bg-gray-100 p-3 rounded border overflow-x-auto">{{ response_formatted }}</pre>
+</div>''',
+        "list_response": '''<div class="chat-bubble chat-bubble-bot">
+  <ul class="list-disc pl-5">
+    {%- for item in response %}
+    <li>{{ item }}</li>
+    {%- endfor %}
+  </ul>
+</div>''',
+        "image_response": '''<div class="chat-bubble chat-bubble-bot">
+  <img src="{{ response.url or response.src or response }}" alt="{{ response.alt or 'Generated image' }}" class="max-w-full h-auto rounded">
+</div>''',
+        "markdown_response": '''<div class="chat-bubble chat-bubble-bot prose prose-sm max-w-none">
+  {{ response | markdown | safe }}
+</div>'''
     }
     
-    return defaults.get(snippet_name, '<div>{{ content }}</div>')
+    return defaults.get(snippet_name, '<div class="chat-bubble chat-bubble-bot">{{ response }}</div>')
 
 
 async def render_agent_view(agent_name: str, snippet_name: str, context: dict) -> str:
@@ -345,17 +348,8 @@ async def render_agent_view(agent_name: str, snippet_name: str, context: dict) -
     """
     from jinja2 import Environment, BaseLoader, TemplateSyntaxError
     
-    logger.info(f"[DEBUG] render_agent_view called with agent={agent_name}, snippet={snippet_name}")
-    logger.info(f"[DEBUG] Context keys: {list(context.keys())}")
-    logger.info(f"[DEBUG] Context['response'] type: {type(context.get('response'))}")
-    if 'response' in context and isinstance(context['response'], dict):
-        logger.info(f"[DEBUG] Response dict keys: {list(context['response'].keys())}")
-        if 'issues' in context['response']:
-            logger.info(f"[DEBUG] Issues found: {len(context['response']['issues'])} items")
-    
     # Get the template content
     template_content = await get_agent_template(agent_name, snippet_name)
-    logger.info(f"[DEBUG] Template content preview: {template_content[:200]}...")
     
     try:
         # Create a Jinja2 environment with a string loader
@@ -364,23 +358,16 @@ async def render_agent_view(agent_name: str, snippet_name: str, context: dict) -
         
         # Render the template with context
         rendered = template.render(context)
-        logger.info(f"[DEBUG] Template rendered successfully, length: {len(rendered)}")
-        logger.info(f"[DEBUG] Rendered preview: {rendered[:200]}...")
-        
         return rendered
         
     except TemplateSyntaxError as e:
-        logger.error(f"[DEBUG] Template syntax error in {agent_name}/{snippet_name}: {e}")
+        logger.error(f"Template syntax error in {agent_name}/{snippet_name}: {e}")
         # Fall back to simple string replacement
-        fallback = render_snippet_with_context(template_content, context)
-        logger.info(f"[DEBUG] Using fallback rendering, result: {fallback[:200]}...")
-        return fallback
+        return render_snippet_with_context(template_content, context)
     except Exception as e:
-        logger.error(f"[DEBUG] Error rendering template {agent_name}/{snippet_name}: {e}")
+        logger.error(f"Error rendering template {agent_name}/{snippet_name}: {e}")
         # Fall back to simple string replacement  
-        fallback = render_snippet_with_context(template_content, context)
-        logger.info(f"[DEBUG] Using fallback rendering, result: {fallback[:200]}...")
-        return fallback
+        return render_snippet_with_context(template_content, context)
 
 
 def render_snippet_with_context(snippet_html: str, context: dict) -> str:
@@ -394,16 +381,10 @@ def render_snippet_with_context(snippet_html: str, context: dict) -> str:
     Returns:
         Rendered HTML string
     """
-    logger.info(f"[DEBUG] render_snippet_with_context called")
-    logger.info(f"[DEBUG] Template: {snippet_html[:100]}...")
-    logger.info(f"[DEBUG] Context keys: {list(context.keys())}")
-    
     rendered = snippet_html
     for key, value in context.items():
         placeholder = f"{{{key}}}"
         replacement = str(value)
-        logger.info(f"[DEBUG] Replacing {placeholder} with {replacement[:100]}...")
         rendered = rendered.replace(placeholder, replacement)
     
-    logger.info(f"[DEBUG] Fallback rendered result: {rendered[:200]}...")
     return rendered

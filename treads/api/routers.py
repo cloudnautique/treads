@@ -72,13 +72,10 @@ async def list_prompts():
 
 @MCPRouter.post("/api/prompts/{name}")
 async def get_prompt(name: str, body: dict = Body(None)):
-    logger.info(f"[PROMPT DEBUG] Received body: {body}")
     arguments = extract_arguments_from_body(body)
     
     async def prompt_operation(client):
-        logger.info(f"[PROMPT DEBUG] Calling get_prompt with arguments: {arguments}")
         result = await client.get_prompt(name, arguments=arguments)
-        logger.info(f"[PROMPT DEBUG] get_prompt result: {result}")
         return result
     
     try:
@@ -197,7 +194,7 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
     Invokes an agent with a prompt and returns a customizable response.
     Uses agent-specific view snippets from ui://{agent}/chat_response if available.
     """
-    logger.info(f"INVOKING AGENT '{agent}' WITH BODY: {body}")
+    logger.info(f"Invoking agent '{agent}' with prompt")
     
     # Extract prompt using helper function
     prompt = extract_prompt_from_body(body)
@@ -210,47 +207,36 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
         
         response = await handle_client_operation(f"invoke_{agent}", chat_operation)
         
-        logger.info(f"[DEBUG] Raw response from tool: type={type(response)}, value={repr(response)}")
-        
-        # Unwrap response if it has an extra "response" wrapper
-        if isinstance(response, dict) and len(response) == 1 and "response" in response:
-            logger.info(f"[DEBUG] Unwrapping extra 'response' wrapper")
-            response = response["response"]
-            logger.info(f"[DEBUG] Unwrapped response: {response}")
+        # Extract response_type from response if it's a dict, default to "chat_response"
+        response_type = "chat_response"
+        if isinstance(response, dict) and "response_type" in response:
+            response_type = response["response_type"]
+            # Remove response_type from the response data so it doesn't appear in the template
+            response_data = {k: v for k, v in response.items() if k != "response_type"}
+        else:
+            response_data = response
         
         # Handle structured data vs text for template rendering
-        if isinstance(response, (dict, list)):
+        if isinstance(response_data, (dict, list)):
             # For structured data, pass both the raw data and a formatted version
-            response_data = response
-            response_formatted = json.dumps(response, indent=2)
-            response_for_json = response
-            logger.info(f"[DEBUG] Structured data detected - response_data: {response_data}")
-            logger.info(f"[DEBUG] Formatted version: {response_formatted}")
+            response_formatted = json.dumps(response_data, indent=2)
+            response_for_json = response_data
         else:
             # For text responses, use as-is
-            response_data = response
-            response_formatted = str(response)
-            response_for_json = response
-            logger.info(f"[DEBUG] Text data detected - response_data: {response_data}")
+            response_formatted = str(response_data)
+            response_for_json = response_data
         
         template_context = {
             "response": response_data,  # Raw structured data for template access
             "response_formatted": response_formatted,  # Pretty-printed version for display
             "agent": agent,
             "prompt": prompt,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "response_type": response_type  # Include response_type in context
         }
         
-        logger.info(f"[DEBUG] Template context keys: {list(template_context.keys())}")
-        logger.info(f"[DEBUG] Template context['response'] type: {type(template_context['response'])}")
-        if isinstance(template_context['response'], dict):
-            logger.info(f"[DEBUG] Dict keys: {list(template_context['response'].keys())}")
-        
-        # Render agent-specific view with context
-        rendered_html = await render_agent_view(agent, "chat_response", template_context)
-        
-        logger.info(f"[DEBUG] Rendered HTML length: {len(rendered_html)}")
-        logger.info(f"[DEBUG] Rendered HTML preview: {rendered_html[:200]}...")
+        # Render agent-specific view with context using dynamic response_type
+        rendered_html = await render_agent_view(agent, response_type, template_context)
         
         html_response = HTMLResponse(rendered_html)
         

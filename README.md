@@ -66,8 +66,15 @@ export OPENAI_API_KEY="sk-..."
 
 - Connects to MCP servers (e.g., Nanobot) using FastMCP 2.0
 - Provides customizable Views for chat, prompts, and resources
+- **Dynamic templating system** - agents can specify response types for custom UI rendering
 - Integrates with OpenAI for chat and tool calling
 - FastAPI-based web server with extensible endpoints
+
+## Dynamic Templating
+
+Agents can now control how their responses are rendered by including a `response_type` field in their JSON responses. The system supports built-in templates for common data types (tables, code, lists) and allows custom templates per agent.
+
+See [DYNAMIC_TEMPLATING.md](DYNAMIC_TEMPLATING.md) for detailed documentation.
 
 ## Next Steps
 
