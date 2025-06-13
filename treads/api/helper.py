@@ -346,15 +346,16 @@ async def render_agent_view(agent_name: str, snippet_name: str, context: dict) -
     Returns:
         Rendered HTML string
     """
-    from jinja2 import Environment, BaseLoader, TemplateSyntaxError
+    from jinja2 import TemplateSyntaxError
+    from treads.views.jinja_env import get_jinja_env
     
     # Get the template content
     template_content = await get_agent_template(agent_name, snippet_name)
     
     try:
-        # Create a Jinja2 environment with a string loader
-        env = Environment(loader=BaseLoader())
-        template = env.from_string(template_content)
+        # Use the global Jinja environment with all loaded filters and globals
+        jinja_env = get_jinja_env()
+        template = jinja_env.env.from_string(template_content)
         
         # Render the template with context
         rendered = template.render(context)
