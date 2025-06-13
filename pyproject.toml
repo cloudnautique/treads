@@ -21,6 +21,7 @@ dev = "treads.tread_manage:dev"
 packages = [
     "treads",
     "treads.api",
+    "treads.api.routers",
     "treads.nanobot",
     "treads.views",
     "treads.config"
