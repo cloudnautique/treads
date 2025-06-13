@@ -37,8 +37,62 @@ class JinjaEnvironment:
             loader=FileSystemLoader(self.template_dir),
             autoescape=select_autoescape(['html', 'xml'])
         )
+        
+        # Add basic/common filters
+        self._add_basic_filters()
+        
         # Cache for multiple template directories
         self._env_cache = {self.template_dir: self.env}
+    
+    def _add_basic_filters(self):
+        """Add basic filters that should be available in all templates."""
+        def markdown_filter(text: str) -> str:
+            """Convert markdown to HTML."""
+            try:
+                from markdown import markdown
+                return markdown(str(text))
+            except ImportError:
+                # Fallback if markdown not available
+                return str(text).replace('\n', '<br>')
+        
+        def json_filter(obj) -> str:
+            """Convert object to JSON string."""
+            import json
+            return json.dumps(obj, indent=2)
+        
+        def safe_filter(text: str) -> str:
+            """Mark string as safe (don't escape HTML)."""
+            from markupsafe import Markup
+            return Markup(text)
+        
+        def debug_filter(obj) -> str:
+            """Debug filter that prints all template context."""
+            import json
+            # Get the context from the current template evaluation
+            # This is a bit of a hack but works for debugging
+            try:
+                frame = None
+                import inspect
+                for frame_info in inspect.stack():
+                    if 'context' in frame_info.frame.f_locals:
+                        frame = frame_info.frame
+                        break
+                
+                if frame and 'context' in frame.f_locals:
+                    context = frame.f_locals['context']
+                    debug_output = f"DEBUG CONTEXT:\n{json.dumps(context, indent=2, default=str)}\n"
+                    print(debug_output)  # Print to console
+                    return f"<!-- {debug_output} -->"  # Return as HTML comment
+                else:
+                    return f"<!-- DEBUG: Could not access template context, got: {type(obj)} -->"
+            except Exception as e:
+                return f"<!-- DEBUG ERROR: {e} -->"
+        
+        # Add filters to environment
+        self.env.filters['markdown'] = markdown_filter
+        self.env.filters['json'] = json_filter
+        self.env.filters['safe'] = safe_filter
+        self.env.filters['debug'] = debug_filter
     
     def get_env_for_template_dir(self, template_dir: str) -> Environment:
         """Get or create a Jinja environment for a specific template directory."""
@@ -47,7 +101,7 @@ class JinjaEnvironment:
                 loader=FileSystemLoader(template_dir),
                 autoescape=select_autoescape(['html', 'xml'])
             )
-            # Copy filters and globals from main environment
+            # Copy filters and globals from main environment (includes basic filters)
             self._env_cache[template_dir].filters.update(self.env.filters)
             self._env_cache[template_dir].globals.update(self.env.globals)
         return self._env_cache[template_dir]

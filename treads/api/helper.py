@@ -352,9 +352,10 @@ async def render_agent_view(agent_name: str, snippet_name: str, context: dict) -
     # Get the template content
     template_content = await get_agent_template(agent_name, snippet_name)
     
+    # Use the global Jinja environment with all loaded filters and globals
+    jinja_env = get_jinja_env()
+    
     try:
-        # Use the global Jinja environment with all loaded filters and globals
-        jinja_env = get_jinja_env()
         template = jinja_env.env.from_string(template_content)
         
         # Render the template with context
@@ -363,10 +364,12 @@ async def render_agent_view(agent_name: str, snippet_name: str, context: dict) -
         
     except TemplateSyntaxError as e:
         logger.error(f"Template syntax error in {agent_name}/{snippet_name}: {e}")
+        logger.error(f"Template content: {template_content}")
         # Fall back to simple string replacement
         return render_snippet_with_context(template_content, context)
     except Exception as e:
         logger.error(f"Error rendering template {agent_name}/{snippet_name}: {e}")
+        logger.error(f"Template content: {template_content}")
         # Fall back to simple string replacement  
         return render_snippet_with_context(template_content, context)
 

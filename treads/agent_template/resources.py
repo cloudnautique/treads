@@ -45,7 +45,7 @@ def register_resources(mcp: FastMCP):
     <span class="text-blue-600 font-semibold text-xs uppercase">{name} Agent</span>
     <span class="text-xs text-gray-500">{{ timestamp }}</span>
   </div>
-  <div class="text-gray-800">{{ response }}</div>
+  <div class="text-gray-800">{{ response | markdown }}</div>
 </div>'''
             }
         }
