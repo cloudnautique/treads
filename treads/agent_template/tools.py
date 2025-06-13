@@ -53,7 +53,7 @@ mcp = create_agent()
 @mcp.tool()
 async def chat(prompt: str, ctx: Context) -> str:
     """This tool chats with the {name} Agent."""
-    result = await ctx.sample(prompt)
+    result = await ctx.sample(prompt, model_preferences=f"{name}")
 
     return result.text
 

@@ -142,7 +142,7 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
     
     try:
         async def chat_operation(client):
-            result = await client.call_tool("app", {"prompt": prompt})
+            result = await client.call_tool(agent, {"prompt": prompt})
             return extract_text_response_from_tool_result(result)
         
         response = await handle_client_operation(f"invoke_{agent}", chat_operation)
