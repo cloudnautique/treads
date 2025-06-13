@@ -19,6 +19,15 @@ def discover_and_load_agent_configs() -> List[Dict[str, Any]]:
     Returns:
         List of loaded agent configurations with metadata
     """
+    # Initialize Jinja environment first
+    from treads.views.jinja_env import get_jinja_env
+    try:
+        jinja_env = get_jinja_env()  # This will auto-initialize if needed
+        print("✓ Jinja environment initialized")
+    except Exception as e:
+        print(f"⚠ Failed to initialize Jinja environment: {e}")
+        return []
+    
     agents_dir = "agents"
     loaded_configs = []
     
@@ -42,7 +51,12 @@ def discover_and_load_agent_configs() -> List[Dict[str, Any]]:
             except Exception as e:
                 print(f"⚠ Error loading config for {agent_name}: {e}")
     
-    print(f"📦 Loaded {len(loaded_configs)} agent configurations")
+    if loaded_configs:
+        print(f"📦 Loaded {len(loaded_configs)} agent configurations")
+        _print_config_summary(loaded_configs)
+    else:
+        print("📦 No agent configurations loaded")
+        
     return loaded_configs
 
 
@@ -68,17 +82,57 @@ def _load_agent_config(agent_name: str, config_path: str) -> Dict[str, Any] | No
     
     # Apply the agent's configuration
     if hasattr(config_module, 'apply_agent_config'):
-        config = config_module.apply_agent_config()
-        metadata = getattr(config_module, 'get_agent_metadata', lambda: {})()
-        
-        return {
-            'agent': agent_name,
-            'config': config,
-            'metadata': metadata
-        }
+        try:
+            config = config_module.apply_agent_config()
+            metadata = getattr(config_module, 'get_agent_metadata', lambda: {})()
+            
+            print(f"  🔧 Applied configuration for {agent_name}")
+            
+            # Debug: Show what was applied
+            if isinstance(config, dict):
+                filters = config.get('filters', {})
+                globals_dict = config.get('globals', {})
+                if filters:
+                    print(f"    ➕ Added {len(filters)} filters: {list(filters.keys())}")
+                if globals_dict:
+                    print(f"    ➕ Added {len(globals_dict)} globals: {list(globals_dict.keys())}")
+            
+            return {
+                'agent': agent_name,
+                'config': config,
+                'metadata': metadata
+            }
+        except Exception as e:
+            print(f"⚠ Error applying config for {agent_name}: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
     else:
         print(f"⚠ {agent_name}/config.py missing apply_agent_config function")
         return None
+
+
+def _print_config_summary(loaded_configs: List[Dict[str, Any]]) -> None:
+    """Print a summary of loaded configurations."""
+    total_filters = 0
+    total_globals = 0
+    
+    for config_info in loaded_configs:
+        metadata = config_info.get('metadata', {})
+        filters = metadata.get('filters', [])
+        globals_list = metadata.get('globals', [])
+        total_filters += len(filters)
+        total_globals += len(globals_list)
+        
+        agent_name = config_info['agent']
+        if filters or globals_list:
+            print(f"  📋 {agent_name}: {len(filters)} filters, {len(globals_list)} globals")
+            if filters:
+                print(f"     🔧 Filters: {', '.join(filters)}")
+            if globals_list:
+                print(f"     🌐 Globals: {', '.join(globals_list)}")
+    
+    print(f"📊 Total: {total_filters} filters, {total_globals} globals loaded")
 
 
 def get_agent_config_summary(loaded_configs: List[Dict[str, Any]]) -> Dict[str, Any]:
