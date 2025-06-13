@@ -7,8 +7,11 @@ filters and globals are available globally.
 """
 
 import os
+import logging
 import importlib.util
 from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 def discover_and_load_agent_configs() -> List[Dict[str, Any]]:
@@ -20,22 +23,22 @@ def discover_and_load_agent_configs() -> List[Dict[str, Any]]:
         List of loaded agent configurations with metadata
     """
     # Initialize Jinja environment first
-    from treads.views.jinja_env import get_jinja_env
+    from treads.views.jinja_env import initialize_jinja_env
     try:
-        jinja_env = get_jinja_env()  # This will auto-initialize if needed
-        print("✓ Jinja environment initialized")
+        jinja_env = initialize_jinja_env()  # Use explicit initialization
+        logger.info("✓ Jinja environment initialized successfully")
     except Exception as e:
-        print(f"⚠ Failed to initialize Jinja environment: {e}")
+        logger.error(f"⚠ Failed to initialize Jinja environment: {e}")
         return []
     
     agents_dir = "agents"
     loaded_configs = []
     
     if not os.path.exists(agents_dir):
-        print(f"ℹ No {agents_dir} directory found - skipping agent config discovery")
+        logger.info(f"ℹ No {agents_dir} directory found - skipping agent config discovery")
         return loaded_configs
     
-    print(f"🔍 Discovering agent configs in {agents_dir}/")
+    logger.info(f"🔍 Discovering agent configs in {agents_dir}/")
     
     for agent_name in os.listdir(agents_dir):
         agent_path = os.path.join(agents_dir, agent_name)
@@ -46,16 +49,18 @@ def discover_and_load_agent_configs() -> List[Dict[str, Any]]:
                 config = _load_agent_config(agent_name, config_path)
                 if config:
                     loaded_configs.append(config)
-                    print(f"✓ Loaded config for {agent_name}")
+                    logger.info(f"✓ Loaded config for {agent_name}")
                     
             except Exception as e:
-                print(f"⚠ Error loading config for {agent_name}: {e}")
+                logger.error(f"⚠ Error loading config for {agent_name}: {e}")
+                import traceback
+                logger.debug(f"Full traceback: {traceback.format_exc()}")
     
     if loaded_configs:
-        print(f"📦 Loaded {len(loaded_configs)} agent configurations")
+        logger.info(f"📦 Loaded {len(loaded_configs)} agent configurations")
         _print_config_summary(loaded_configs)
     else:
-        print("📦 No agent configurations loaded")
+        logger.info("📦 No agent configurations loaded")
         
     return loaded_configs
 
@@ -74,7 +79,7 @@ def _load_agent_config(agent_name: str, config_path: str) -> Dict[str, Any] | No
     # Load the config module dynamically
     spec = importlib.util.spec_from_file_location(f"{agent_name}_config", config_path)
     if spec is None or spec.loader is None:
-        print(f"⚠ Could not load spec for {agent_name}/config.py")
+        logger.warning(f"⚠ Could not load spec for {agent_name}/config.py")
         return None
         
     config_module = importlib.util.module_from_spec(spec)
@@ -86,16 +91,16 @@ def _load_agent_config(agent_name: str, config_path: str) -> Dict[str, Any] | No
             config = config_module.apply_agent_config()
             metadata = getattr(config_module, 'get_agent_metadata', lambda: {})()
             
-            print(f"  🔧 Applied configuration for {agent_name}")
+            logger.info(f"  🔧 Applied configuration for {agent_name}")
             
             # Debug: Show what was applied
             if isinstance(config, dict):
                 filters = config.get('filters', {})
                 globals_dict = config.get('globals', {})
                 if filters:
-                    print(f"    ➕ Added {len(filters)} filters: {list(filters.keys())}")
+                    logger.debug(f"    ➕ Added {len(filters)} filters: {list(filters.keys())}")
                 if globals_dict:
-                    print(f"    ➕ Added {len(globals_dict)} globals: {list(globals_dict.keys())}")
+                    logger.debug(f"    ➕ Added {len(globals_dict)} globals: {list(globals_dict.keys())}")
             
             return {
                 'agent': agent_name,
@@ -103,12 +108,12 @@ def _load_agent_config(agent_name: str, config_path: str) -> Dict[str, Any] | No
                 'metadata': metadata
             }
         except Exception as e:
-            print(f"⚠ Error applying config for {agent_name}: {e}")
+            logger.error(f"⚠ Error applying config for {agent_name}: {e}")
             import traceback
-            traceback.print_exc()
+            logger.debug(f"Full traceback: {traceback.format_exc()}")
             return None
     else:
-        print(f"⚠ {agent_name}/config.py missing apply_agent_config function")
+        logger.warning(f"⚠ {agent_name}/config.py missing apply_agent_config function")
         return None
 
 
@@ -126,13 +131,13 @@ def _print_config_summary(loaded_configs: List[Dict[str, Any]]) -> None:
         
         agent_name = config_info['agent']
         if filters or globals_list:
-            print(f"  📋 {agent_name}: {len(filters)} filters, {len(globals_list)} globals")
+            logger.info(f"  📋 {agent_name}: {len(filters)} filters, {len(globals_list)} globals")
             if filters:
-                print(f"     🔧 Filters: {', '.join(filters)}")
+                logger.debug(f"     🔧 Filters: {', '.join(filters)}")
             if globals_list:
-                print(f"     🌐 Globals: {', '.join(globals_list)}")
+                logger.debug(f"     🌐 Globals: {', '.join(globals_list)}")
     
-    print(f"📊 Total: {total_filters} filters, {total_globals} globals loaded")
+    logger.info(f"📊 Total: {total_filters} filters, {total_globals} globals loaded")
 
 
 def get_agent_config_summary(loaded_configs: List[Dict[str, Any]]) -> Dict[str, Any]:
