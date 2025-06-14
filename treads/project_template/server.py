@@ -1,5 +1,5 @@
 from treads.api.fastapp import App
-from treads.api.routers import MCPRouter, TreadRouter, get_ui_resource
+from treads.api.routers import TreadRouter, get_ui_resource
 from treads.config import discover_and_load_agent_configs
 
 from fastapi import Request
@@ -12,7 +12,6 @@ def create_app():
     agent_configs = discover_and_load_agent_configs()
     
     app = App  # App is already an instance from fastapp.py
-    app.include_router(MCPRouter)
     app.include_router(TreadRouter)
     app.mount("/static", StaticFiles(directory="static"), name="static")
     
