@@ -160,6 +160,15 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
             response = extract_text_response_from_tool_result(result)
         
         logger.info(f"Extracted response: {response}")
+
+        #try to parse response as JSON if it's a string
+        if isinstance(response, str):
+            try:
+                response = json.loads(response)
+                logger.info("Response parsed as JSON")
+            except json.JSONDecodeError:
+                logger.warning("Response is not valid JSON, using raw string")
+                pass
         
         # Extract response_type from response if it's a dict, default to "chat_response"
         response_type = "chat_response"
