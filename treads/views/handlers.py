@@ -1,15 +1,13 @@
-from treads.views.services import PromptService, TemplateService
+import logging
+
+from typing import Type, Optional
+from pydantic import BaseModel, Field
 from treads.views.template_utils import extract_uri_params
 from treads.views.jinja_env import get_jinja_env
+from treads.views.types import HTMLTextType, HTMLTemplate
 
+logger = logging.getLogger(__name__)
 
-class HTMLTextType:
-    """Class to represent HTML text type for content delivery."""
-    def __init__(self, html_string: str):
-        self.html_string = html_string
-    
-    def to_dict(self):
-        return {"content": {"mimeType": "text/html", "text": self.html_string}}
 
 class ResourceHandlers:
     def __init__(self, template_dir=None):
@@ -23,44 +21,32 @@ class ResourceHandlers:
     
     def get_page(self, page: str):
         """Render a simple app page."""
-        html = self.render_template(f"{page}.html")
-        return HTMLTextType(html).to_dict()
+        html = self.render_template(f"{page}")
+        return HTMLTextType(htmlString=html).model_dump()
     
-    def get_template_content(self, template_name: str) -> str:
+    def get_template_content(
+        self,
+        template_name: str,
+        context_schema: Optional[Type[BaseModel]] = None
+    ) -> HTMLTemplate:
         """Get the raw template content without rendering."""
         jinja_env = get_jinja_env()
-        return jinja_env.get_template_content(template_name, self.template_dir)
+        template_content = jinja_env.get_template_content(template_name, self.template_dir)
+        # context_schema is a Type[BaseModel] or None, but the model expects contextSchema
+        schema = context_schema.model_json_schema() if context_schema and issubclass(context_schema, BaseModel) else (context_schema or {})
+        return HTMLTemplate(htmlTemplateString=template_content, contextSchema=schema)
 
-    async def prompts_list(self, template="prompts.tmpl"):
-        """Render the prompts list page."""
-        prompt_list, _ = await PromptService.get_prompts()
-        html = self.render_template(template, {"prompts": prompt_list})
-        return HTMLTextType(html).to_dict()
-    
-    async def prompt_form(self, template="prompt_form_modal.tmpl", context=None):
-        """Render a specific prompt form."""
-        if not context:
-            html = f"<div class='text-red-500'>Prompt not found.</div>"
-        else:
-            html = self.render_template(template, {"prompt": context})
-        
-        return HTMLTextType(html).to_dict()
-    
-    async def templates_list(self, template="resource_templates.tmpl"):
-        """Render the resource templates list page."""
-        template_list, _ = await TemplateService.get_templates()
-        html = self.render_template(template, {"templates": template_list})
-        return HTMLTextType(html).to_dict()
-    
-    async def template_form(self, template: str = "resource_template_form_modal.tmpl", context=None): 
-        """Render a specific template form."""
+    def get_resource_template_form(self, template: str = "resource_template_form.tmpl", context=None): 
+        """Render a resource template form. Handles the uriTemplate extraction."""
         if not context:
             html = f"<div class='text-red-500'>Template not found.</div>"
         else:
+            logger.info(f"Rendering resource template form with context: {context}")
             uri_params = extract_uri_params(context["uriTemplate"])
+            logger.info(f"Extracted URI params: {uri_params}")
             html = self.render_template(template, {
                 "template": context, 
                 "uri_params": uri_params
             })
         
-        return HTMLTextType(html).to_dict()
+        return HTMLTextType(htmlString=html).model_dump()

@@ -1,5 +1,5 @@
 <form id="prompt-form" class="flex flex-col gap-4"
-      hx-post="/api/prompts/{{ prompt.name }}/messages"
+      hx-post="/api/{name}/prompts/{{ prompt.name }}/messages"
       hx-headers='{"Content-Type": "application/json"}'
       hx-ext="json-enc"
       hx-target="#prompt-proxy"

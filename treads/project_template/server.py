@@ -1,22 +1,20 @@
+import logging 
+
 from treads.api.fastapp import App
-from treads.api.routers import TreadRouter, get_ui_resource
-from treads.config import discover_and_load_agent_configs
+from treads.api.routers import TreadRouter
+from treads.api.helper import fetch_and_render_ui_resource
 
 from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 def create_app():
-    # Discover and load all agent configurations
-    agent_configs = discover_and_load_agent_configs()
-    
     app = App  # App is already an instance from fastapp.py
     app.include_router(TreadRouter)
     app.mount("/static", StaticFiles(directory="static"), name="static")
-    
-    # Store agent configs for potential use in routes
-    app.state.agent_configs = agent_configs
     
     return app
 
@@ -25,4 +23,4 @@ app = create_app()
 @app.get("/", response_class=HTMLResponse)
 async def chat_view(request: Request):
     # Serve the base.html template with minimal context
-    return await get_ui_resource(dict({"uri": "ui://app/base"}))
+    return await fetch_and_render_ui_resource("ui://app/base.html")

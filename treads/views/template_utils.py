@@ -1,39 +1,8 @@
-import os
 import re
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-# Default template directory (can be overridden)
-DEFAULT_TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
+from typing import Any
 
 
-def render_template(template_name, context=None, template_dir=None):
-    """Render a Jinja2 template with context."""
-    template_path = template_dir or DEFAULT_TEMPLATE_DIR
-    env = Environment(
-        loader=FileSystemLoader(template_path),
-        autoescape=select_autoescape(["html", "jinja", "tmpl"]),
-    )
-    template = env.get_template(template_name)
-    return template.render(context or {})
-
-
-def get_template_content(template_name, template_dir=None):
-    """Get the raw template content without rendering."""
-    template_path = template_dir or DEFAULT_TEMPLATE_DIR
-    template_file = os.path.join(template_path, template_name)
-
-    try:
-        with open(template_file, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        raise FileNotFoundError(
-            f"Template '{template_name}' not found in {template_path}"
-        )
-    except Exception as e:
-        raise IOError(f"Error reading template '{template_name}': {e}")
-
-
-def extract_uri_params(uri_template):
+def extract_uri_params(uri_template) -> list[dict[str, Any]]:
     """
     Extract parameters from a URI template.
     Handles complex cases like:

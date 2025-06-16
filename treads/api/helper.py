@@ -23,59 +23,17 @@ Data Extraction:
 
 import json
 import logging
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
+from mcp.types import TextContent, ImageContent, EmbeddedResource
 
 from treads.nanobot.client import NanobotClient
+from treads.views.types import HTMLTextType, HTMLTemplate
+from treads.views.jinja_env import get_jinja_env
 
 logger = logging.getLogger("treads.api.helper")
-
-
-# Client Operations
-
-async def with_nanobot_client(operation: Callable, *args, **kwargs) -> Any:
-    """Execute an operation with a NanobotClient, handling connection and errors."""
-    async with NanobotClient() as client:
-        return await operation(client, *args, **kwargs)
-
-
-async def handle_client_operation(
-    operation_name: str,
-    operation: Callable,
-    success_key: Optional[str] = None,
-    *args,
-    **kwargs
-) -> Any:
-    """Generic handler for client operations with error handling."""
-    try:
-        result = await with_nanobot_client(operation, *args, **kwargs)
-        if success_key:
-            return {success_key: result}
-        return result
-    except Exception as e:
-        logger.error(f"Error in {operation_name}: {e}")
-        raise HTTPException(status_code=502, detail=str(e))
-
-
-async def handle_client_list_operation(
-    operation_name: str,
-    method_name: str,
-    success_key: str
-) -> dict:
-    """Generic handler for list operations with hasattr check."""
-    async def list_operation(client):
-        if hasattr(client, method_name):
-            return await getattr(client, method_name)()
-        else:
-            return []
-    
-    return await handle_client_operation(
-        operation_name,
-        list_operation,
-        success_key
-    )
 
 
 # Request/Response Helpers
@@ -144,48 +102,28 @@ def extract_prompt_from_body(body: dict) -> str:
 
 
 def extract_text_response_from_tool_result(result: Any) -> Any:
-    """Extract response from tool call result, preserving structured data."""
-    
-    # Handle direct result object with .type and .text attributes (like your ctx.sample result)
-    if hasattr(result, "type") and hasattr(result, "text"):
-        if result.type == "text":
-            try:
-                parsed_data = json.loads(result.text)
-                # If it's a dict or list, return the structured data
-                if isinstance(parsed_data, (dict, list)):
-                    return parsed_data
-                # Otherwise return the original text
-                return result.text
-            except (json.JSONDecodeError, TypeError):
-                # If not valid JSON, return as text
-                return result.text
-        else:
-            # For non-text types, return the text anyway if available
-            return getattr(result, "text", str(result))
-    
-    # Handle list of items (original pattern)
+    """Extract response from tool call result, using MCP Pydantic types."""
+    # Handle direct MCP Pydantic types
+    if isinstance(result, TextContent):
+        return result.text
+    if isinstance(result, ImageContent):
+        return result.data  # Use .data for image content
+    if isinstance(result, EmbeddedResource):
+        # Fallback: convert to string, as .data is not available
+        return str(result)
+    # Handle list of items (e.g., multiple responses)
     if isinstance(result, list) and result:
+        # Return the content of the first recognized item
         for item in result:
-            item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
-            item_text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
-            
-            if item_type == "text" and item_text:
-                # Try to parse as JSON first to preserve structured data
-                try:
-                    parsed_data = json.loads(item_text)
-                    # If it's a dict or list, return the structured data
-                    if isinstance(parsed_data, (dict, list)):
-                        return parsed_data
-                    # Otherwise return the original text
-                    return item_text
-                except (json.JSONDecodeError, TypeError):
-                    # If not valid JSON, return as text
-                    return item_text
-    
+            if isinstance(item, TextContent):
+                return item.text
+            if isinstance(item, ImageContent):
+                return item.data
+            if isinstance(item, EmbeddedResource):
+                return str(item)
     # If result is already structured data, return as-is
     if isinstance(result, (dict, list)):
         return result
-    
     # Fallback - try to convert to string
     return str(result) if result is not None else "No response"
 
@@ -245,150 +183,52 @@ def extract_text_from_resource_result(result: Any) -> Optional[str]:
     return None
 
 
-async def get_agent_template(agent_name: str, snippet_name: str, fallback_template: Optional[str] = None) -> str:
+async def fetch_and_render_ui_resource(uri: str, context: dict = {}) -> HTMLResponse:
     """
-    Get a Jinja2 template for an agent, falling back to default if not found.
-    
-    Args:
-        agent_name: Name of the agent
-        snippet_name: Name of the snippet (e.g., 'chat_response')
-        fallback_template: Default template to use if no snippet found
-    
-    Returns:
-        Jinja2 template string (not rendered)
+    Fetch a UI resource (HTMLTextType or HTMLTemplate) and render as HTML if needed.
+    Handles stringified Pydantic types in .text attribute.
     """
-    # Try agent-specific template first, then app default
-    uris_to_try = [
-        f"ui://{agent_name}/{snippet_name}",
-        f"ui://app/{snippet_name}" if agent_name != "app" else None
-    ]
-    
-    for uri in uris_to_try:
-        if uri is None:
-            continue
-            
-        try:
-            async with NanobotClient() as client:
-                result = await client.read_resource(uri=uri)
-            
-            # Extract template content from resource result
-            template_content = extract_text_from_resource_result(result)
-            if template_content:
-                # Try to parse as JSON resource first
-                try:
-                    parsed = json.loads(template_content)
-                    if isinstance(parsed, dict) and "content" in parsed:
-                        return parsed["content"].get("text", template_content)
-                    return template_content
-                except json.JSONDecodeError:
-                    # Plain template string
-                    return template_content
-                    
-        except Exception as e:
-            logger.debug(f"Agent template not found at {uri}: {e}")
-            continue
-    
-    # Return fallback or default
-    if fallback_template:
-        return fallback_template
-    
-    # Default templates - expanded to handle more response types
-    defaults = {
-        "chat_response": '''<div class="chat-bubble chat-bubble-bot">
-{%- if response is mapping or response is sequence and response is not string %}
-  <pre style="background: #f5f5f5; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 12px;">{{ response_formatted }}</pre>
-{%- else %}
-  {{ response }}
-{%- endif %}
-</div>''',
-        "error_response": '<div class="chat-bubble chat-bubble-bot text-red-500">Error: {{ error }}</div>',
-        # Additional default templates for common response types
-        "table_response": '''<div class="chat-bubble chat-bubble-bot">
-  <div class="overflow-x-auto">
-    <table class="min-w-full bg-white border border-gray-200">
-      {{ response_formatted }}
-    </table>
-  </div>
-</div>''',
-        "code_response": '''<div class="chat-bubble chat-bubble-bot">
-  <pre class="bg-gray-100 p-3 rounded border overflow-x-auto"><code>{{ response }}</code></pre>
-</div>''',
-        "json_response": '''<div class="chat-bubble chat-bubble-bot">
-  <pre class="bg-gray-100 p-3 rounded border overflow-x-auto">{{ response_formatted }}</pre>
-</div>''',
-        "list_response": '''<div class="chat-bubble chat-bubble-bot">
-  <ul class="list-disc pl-5">
-    {%- for item in response %}
-    <li>{{ item }}</li>
-    {%- endfor %}
-  </ul>
-</div>''',
-        "image_response": '''<div class="chat-bubble chat-bubble-bot">
-  <img src="{{ response.url or response.src or response }}" alt="{{ response.alt or 'Generated image' }}" class="max-w-full h-auto rounded">
-</div>''',
-        "markdown_response": '''<div class="chat-bubble chat-bubble-bot prose prose-sm max-w-none">
-  {{ response | markdown | safe }}
-</div>'''
-    }
-    
-    return defaults.get(snippet_name, '<div class="chat-bubble chat-bubble-bot">{{ response }}</div>')
-
-
-async def render_agent_view(agent_name: str, snippet_name: str, context: dict) -> str:
-    """
-    Render an agent view with context data using Jinja2.
-    
-    Args:
-        agent_name: Name of the agent
-        snippet_name: Name of the snippet (e.g., 'chat_response')
-        context: Dictionary of variables to pass to the template
-    
-    Returns:
-        Rendered HTML string
-    """
-    from jinja2 import TemplateSyntaxError
-    from treads.views.jinja_env import get_jinja_env
-    
-    # Get the template content
-    template_content = await get_agent_template(agent_name, snippet_name)
-    
-    # Use the global Jinja environment with all loaded filters and globals
-    jinja_env = get_jinja_env()
-    
+    if context is None:
+        context = {}
+    if not uri or not uri.startswith("ui://"):
+        raise HTTPException(status_code=400, detail="Missing or invalid 'uri' (must start with 'ui://')")
     try:
-        template = jinja_env.env.from_string(template_content)
-        
-        # Render the template with context
-        rendered = template.render(context)
-        return rendered
-        
-    except TemplateSyntaxError as e:
-        logger.error(f"Template syntax error in {agent_name}/{snippet_name}: {e}")
-        logger.error(f"Template content: {template_content}")
-        # Fall back to simple string replacement
-        return render_snippet_with_context(template_content, context)
+        async with NanobotClient() as client:
+            result = await client.read_resource(uri=uri)
+        for item in result:
+            # 1. If item is a Pydantic HTMLTextType
+            if isinstance(item, HTMLTextType):
+                return HTMLResponse(content=item.html_string)
+            # 2. If item is a Pydantic HTMLTemplate
+            if isinstance(item, HTMLTemplate):
+                template = get_jinja_env().env.from_string(item.template_content)
+                return HTMLResponse(content=template.render(context))
+            # 3. If item has a .text attribute, try to parse as JSON and instantiate
+            text = getattr(item, "text", None)
+            if text:
+                try:
+                    parsed = json.loads(text)
+                    # Try HTMLTextType
+                    if (
+                        isinstance(parsed, dict)
+                        and ("htmlString" in parsed or "html_string" in parsed)
+                    ):
+                        html_string = parsed.get("htmlString") or parsed.get("html_string")
+                        return HTMLResponse(content=html_string)
+                    # Try HTMLTemplate
+                    if (
+                        isinstance(parsed, dict)
+                        and ("htmlTemplateString" in parsed or "template_content" in parsed)
+                    ):
+                        template_content = parsed.get("htmlTemplateString") or parsed.get("template_content")
+                        if template_content:
+                            context_schema = parsed.get("contextSchema") or parsed.get("context_schema", {})
+                            template = get_jinja_env().env.from_string(template_content)
+                            return HTMLResponse(content=template.render(context))
+                except Exception as e:
+                    logger.warning(f"Failed to parse .text as JSON for UI resource: {e}")
+                    continue
+        raise HTTPException(status_code=404, detail="No HTML content found in resource contents")
     except Exception as e:
-        logger.error(f"Error rendering template {agent_name}/{snippet_name}: {e}")
-        logger.error(f"Template content: {template_content}")
-        # Fall back to simple string replacement  
-        return render_snippet_with_context(template_content, context)
-
-
-def render_snippet_with_context(snippet_html: str, context: dict) -> str:
-    """
-    Simple template variable substitution for snippets.
-    
-    Args:
-        snippet_html: HTML snippet with {variable} placeholders
-        context: Dictionary of variables to substitute
-    
-    Returns:
-        Rendered HTML string
-    """
-    rendered = snippet_html
-    for key, value in context.items():
-        placeholder = f"{{{key}}}"
-        replacement = str(value)
-        rendered = rendered.replace(placeholder, replacement)
-    
-    return rendered
+        logger.error(f"Error fetching UI resource: {e}")
+        raise HTTPException(status_code=502, detail=str(e))

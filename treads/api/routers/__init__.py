@@ -6,6 +6,6 @@ This package contains the API routers for the Treads application:
 - TreadRouter: Handles Treads-specific endpoints and UI resources
 """
 
-from .tread import TreadRouter, get_ui_resource
+from .tread import TreadRouter
 
-__all__ = ["TreadRouter", "get_ui_resource"]
+__all__ = ["TreadRouter"]

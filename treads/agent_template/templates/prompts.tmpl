@@ -3,10 +3,7 @@
   {%- for prompt in prompts %}
     <button 
       class="prompt-btn bg-gray-200 hover:bg-blue-100 text-gray-800 rounded px-3 py-2 text-left shadow border border-gray-300 flex flex-col items-start"
-      hx-post="/api/resources/ui"
-      hx-vals='{"uri": "ui://{name}/prompts/{{ prompt.name }}/form"}'
-      hx-headers='{"Content-Type": "application/json"}'
-      hx-ext="json-enc"
+      hx-get="/api/{name}/prompts/{{ prompt.name }}"
       hx-target="#prompt-form-content"
       hx-swap="innerHTML"
       hx-trigger="click"
