@@ -25,7 +25,6 @@ packages = [
     "treads.api.routers",
     "treads.nanobot",
     "treads.views",
-    "treads.config"
 ]
 include-package-data = true
 
