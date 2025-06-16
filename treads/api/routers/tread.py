@@ -170,17 +170,15 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
         else:
             response_data = response
         logger.info(f"response_type: {response_type}, response_data: {response_data}")
-        
+
         # Handle structured data vs text for template rendering
         if isinstance(response_data, (dict, list)):
-            # For structured data, pass both the raw data and a formatted version
             response_formatted = json.dumps(response_data, indent=2)
             response_for_json = response_data
         else:
-            # For text responses, use as-is
             response_formatted = str(response_data)
             response_for_json = response_data
-        
+
         template_context = {
             "response": response_data,  # Raw structured data for template access
             "response_formatted": response_formatted,  # Pretty-printed version for display
@@ -190,14 +188,16 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
             "response_type": response_type  # Include response_type in context
         }
         logger.info(f"Template context for rendering: {template_context}")
-        
+
         # --- Fallback logic for template rendering ---
         rendered_html = None
-        tried_templates = [f"ui://{agent}/{template_context['response_type']}", f"ui://{agent}/chat_response"]
+        tried_templates = [
+            f"ui://{agent}/{response_type}",  # Try the actual response_type first
+            f"ui://{agent}/chat_response"     # Then fallback to chat_response
+        ]
         for uri in tried_templates:
             logger.info(f"Trying to render template: {uri}")
             try:
-                logger.info(f"Trying to render template: {uri}")
                 rendered_html = await fetch_and_render_ui_resource(uri, template_context)
                 logger.info(f"Successfully rendered template: {uri}")
                 logger.info(f"Rendered HTML content: {rendered_html}")
@@ -207,7 +207,6 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
                 if e.status_code != 404:
                     raise  # Only fallback on 404, not other errors
         if not rendered_html:
-            # Final fallback: generic HTML
             logger.warning("Falling back to generic HTML response.")
             rendered_html = HTMLResponse(f"<div class='chat-bubble chat-bubble-bot'>Response: {response_formatted}</div>")
         # --- End fallback logic ---
