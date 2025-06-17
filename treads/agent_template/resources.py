@@ -36,11 +36,7 @@ def register_resources(mcp: FastMCP, agent: NanobotAgent):
 
     @mcp.resource("ui://{name}/resource_templates/{template_name}/form", mime_type="application/json")
     async def {name}_ui_resource_template_form(template_name: str):
-        async with NanobotAgentClient() as client:
-            templates = await client.list_resource_templates()
-            template = next((t for t in templates if t.name == template_name), None)
-        if not template:
-            return {"error": "Template not found", "success": False}
+        template = await handlers.get_resource_template(name=template_name)
         html = handlers.get_resource_template_form(template="resource_template_form.tmpl", context={"uriTemplate": f"{template.uriTemplate}"})
         return html
 

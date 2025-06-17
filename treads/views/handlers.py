@@ -2,17 +2,20 @@ import logging
 
 from typing import Type, Optional
 from pydantic import BaseModel, Field
+from treads.types import NanobotAgent
 from treads.views.template_utils import extract_uri_params
 from treads.views.jinja_env import get_jinja_env
 from treads.views.types import HTMLTextType, HTMLTemplate
+from treads.nanobot.client import NanobotAgentClient
 
 logger = logging.getLogger(__name__)
 
 
 class ResourceHandlers:
-    def __init__(self, template_dir=None):
+    def __init__(self, agent: NanobotAgent, template_dir: Optional[str] = None):
         """Initialize handlers with optional template directory."""
         self.template_dir = template_dir
+        self.agent = agent
     
     def render_template(self, template_name, context=None):
         """Render template using the global Jinja environment."""
@@ -50,3 +53,19 @@ class ResourceHandlers:
             })
         
         return HTMLTextType(htmlString=html).model_dump()
+
+    async def get_resource_template(self, name: str):
+        async with NanobotAgentClient(agent=self.agent) as client:
+            templates = await client.list_resource_templates()
+            template = next((t for t in templates if t.name == name), None)
+            if not template:
+                return {"error": "Template not found", "success": False}
+            return template
+
+    async def get_prompt(self, name: str):
+        async with NanobotAgentClient(agent=self.agent) as client:
+            prompts = await client.list_prompts()
+            prompt = next((p for p in prompts if p.name == name), None)
+            if not prompt:
+                return {"error": "Prompt not found", "success": False}
+            return prompt
