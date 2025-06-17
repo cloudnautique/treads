@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 AGENT_NAME = "{name}_mcp"
 
 Agent = NanobotAgent(
-    name="{name}",,
+    name="{name}",
     dir=f"agents/{name}/nanobot.yaml",
     address="127.0.0.1:8099"
 )
