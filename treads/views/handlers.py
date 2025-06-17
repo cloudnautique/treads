@@ -2,6 +2,7 @@ import logging
 
 from typing import Type, Optional
 from pydantic import BaseModel, Field
+from mcp.types import Prompt, ResourceTemplate
 from treads.types import NanobotAgent
 from treads.views.template_utils import extract_uri_params
 from treads.views.jinja_env import get_jinja_env
@@ -54,18 +55,14 @@ class ResourceHandlers:
         
         return HTMLTextType(htmlString=html).model_dump()
 
-    async def get_resource_template(self, name: str):
+    async def get_resource_template(self, name: str) -> ResourceTemplate | None:
         async with NanobotAgentClient(agent=self.agent) as client:
             templates = await client.list_resource_templates()
             template = next((t for t in templates if t.name == name), None)
-            if not template:
-                return {"error": "Template not found", "success": False}
-            return template
+        return template
 
-    async def get_prompt(self, name: str):
+    async def get_prompt(self, name: str) -> Prompt| None:
         async with NanobotAgentClient(agent=self.agent) as client:
             prompts = await client.list_prompts()
             prompt = next((p for p in prompts if p.name == name), None)
-            if not prompt:
-                return {"error": "Prompt not found", "success": False}
-            return prompt
+        return prompt
