@@ -29,7 +29,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
 from mcp.types import TextContent, ImageContent, EmbeddedResource
 
-from treads.nanobot.client import NanobotClient
+from treads.nanobot.client import NanobotAgentClient, get_agent
 from treads.views.types import HTMLTextType, HTMLTemplate
 from treads.views.jinja_env import get_jinja_env
 
@@ -183,6 +183,13 @@ def extract_text_from_resource_result(result: Any) -> Optional[str]:
     return None
 
 
+def get_agent_or_404(agent_name: str):
+    agent_obj = get_agent(agent_name)
+    if agent_obj is None:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+    return agent_obj
+
+
 async def fetch_and_render_ui_resource(uri: str, context: dict = {}) -> HTMLResponse:
     """
     Fetch a UI resource (HTMLTextType or HTMLTemplate) and render as HTML if needed.
@@ -193,7 +200,13 @@ async def fetch_and_render_ui_resource(uri: str, context: dict = {}) -> HTMLResp
     if not uri or not uri.startswith("ui://"):
         raise HTTPException(status_code=400, detail="Missing or invalid 'uri' (must start with 'ui://')")
     try:
-        async with NanobotClient() as client:
+        # Extract agent name from uri, e.g. ui://app/base.html -> 'app'
+        try:
+            agent_name = uri.split("//", 1)[1].split("/", 1)[0]
+        except Exception:
+            agent_name = None
+        agent_obj = get_agent_or_404(agent_name) if agent_name else None
+        async with NanobotAgentClient(agent_obj) as client:
             result = await client.read_resource(uri=uri)
         for item in result:
             # 1. If item is a Pydantic HTMLTextType

@@ -42,6 +42,11 @@ def create_project():
     dirs = ["agents", "static"]
     for d in dirs:
         (root / d).mkdir(parents=True, exist_ok=True)
+    # Ensure agents/__init__.py is created in the project directory
+    agents_init = root / "agents" / "__init__.py"
+    if not agents_init.exists():
+        agents_init.parent.mkdir(parents=True, exist_ok=True)
+        agents_init.write_text("\n# Agents package\n")
     # Correctly create the 'app' agent as a child of the project directory
     prev_cwd = Path.cwd()
     try:
@@ -66,10 +71,6 @@ def create_agent_with_name(agent_name):
         sys.exit(1)
     copy_agent_template_dir(agent_template_dir, agent_dir, agent_name)
     print(f"Agent '{agent_name}' created in {agent_dir}")
-
-
-# Use the agents directory in the current working directory (the user's project)
-AGENTS_DIR = Path.cwd() / "agents"
 
 
 def should_skip_file(path):

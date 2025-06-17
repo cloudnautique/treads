@@ -1,12 +1,19 @@
 import os
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
+from treads.types import NanobotAgent
 
-NANOBOT_MCP_URL = os.environ.get("NANOBOT_MCP_URL", "http://localhost:8099/mcp")
+_agent_registry = {}
 
-def NanobotClient() -> Client:
-    """Create a FastMCP client for the Nanobot MCP."""
-    transport = StreamableHttpTransport(NANOBOT_MCP_URL)
+def register_agent(name, agent_obj):
+    _agent_registry[name] = agent_obj
+
+def get_agent(name):
+    return _agent_registry.get(name)
+
+def NanobotAgentClient(agent: NanobotAgent) -> Client:
+    agent_url = f"http://{agent.address}/mcp"
+    transport = StreamableHttpTransport(agent_url)
     return Client(transport=transport)
 
-__all__ = ["NanobotClient"]
+__all__ = ["register_agent", "get_agent", "NanobotAgentClient"]

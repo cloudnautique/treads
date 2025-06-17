@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import HTTPException, Body, Request, APIRouter
 from fastapi.responses import HTMLResponse
 
-from treads.nanobot.client import NanobotClient
+from treads.nanobot.client import NanobotAgentClient, get_agent
 from treads.api.helper import (
     prefers_json,
     create_error_response,
@@ -21,6 +21,14 @@ from treads.api.helper import (
 logger = logging.getLogger(__name__)
 
 TreadRouter = APIRouter()
+
+
+# Helper to fetch agent or raise 404
+def get_agent_or_404(agent_name: str):
+    agent_obj = get_agent(agent_name)
+    if agent_obj is None:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+    return agent_obj
 
 
 @TreadRouter.post("/api/resources/ui")
@@ -44,7 +52,8 @@ async def list_agent_resource_templates(request: Request, agent: str):
     """
     prefer_json = prefers_json(request)
     try:
-        async with NanobotClient() as client:
+        agent_obj = get_agent_or_404(agent)
+        async with NanobotAgentClient(agent_obj) as client:
             templates_raw = await client.list_resource_templates()
             templates = [t.model_dump() for t in templates_raw]
         context = {"templates": templates, "agent": agent}
@@ -67,7 +76,8 @@ async def get_agent_resource_template(request: Request, agent: str, name: str):
     """
     prefer_json = prefers_json(request)
     try:
-        async with NanobotClient() as client:
+        agent_obj = get_agent_or_404(agent)
+        async with NanobotAgentClient(agent_obj) as client:
             templates = await client.list_resource_templates()
             template = next((t for t in templates if t.name == name), None)
         if template:
@@ -92,7 +102,8 @@ async def list_agent_prompts(request: Request, agent: str):
     """
     prefer_json = prefers_json(request)
     try:
-        async with NanobotClient() as client:
+        agent_obj = get_agent_or_404(agent)
+        async with NanobotAgentClient(agent_obj) as client:
             prompts_raw = await client.list_prompts()
             prompts = [prompt.model_dump() for prompt in prompts_raw]
         context = {"prompts": prompts, "agent": agent}
@@ -115,7 +126,8 @@ async def get_agent_prompt(request: Request, agent: str, name: str):
     """
     prefer_json = prefers_json(request)
     try:
-        async with NanobotClient() as client:
+        agent_obj = get_agent_or_404(agent)
+        async with NanobotAgentClient(agent_obj) as client:
             prompts = await client.list_prompts()
             prompt = next((p for p in prompts if p.name == name), None)
         if prompt:
@@ -154,7 +166,8 @@ async def invoke_agent(request: Request, agent: str, body: dict = Body(...)):
     prefer_json = prefers_json(request)
     
     try:
-        async with NanobotClient() as client:
+        agent_obj = get_agent_or_404(agent)
+        async with NanobotAgentClient(agent_obj) as client:
             result = await client.call_tool(agent, {"prompt": prompt})
             logger.debug(f"Raw result from client.call_tool: {result}")
             response = extract_text_response_from_tool_result(result)
@@ -245,7 +258,8 @@ async def get_rendered_prompt_messages(request: Request, agent: str, name: str, 
     logger.info(f"Fetching rendered messages for prompt '{name}' with arguments: {arguments}")
     
     try:
-        async with NanobotClient() as client:
+        agent_obj = get_agent_or_404(agent)
+        async with NanobotAgentClient(agent_obj) as client:
             result = await client.get_prompt(name, arguments=arguments)
             logger.info(f"Raw result from client.get_prompt: {result}")
             extracted_text = extract_text_from_prompt_result(result)
@@ -283,8 +297,8 @@ async def get_resource_with_instructions(request: Request, agent: str, body: dic
     
     try:
         logger.info(f"Fetching resource from URI: {uri}")
-        
-        async with NanobotClient() as client:
+        agent_obj = get_agent_or_404(agent)
+        async with NanobotAgentClient(agent_obj) as client:
             result = await client.read_resource(uri=uri)
             logger.info(f"Resource result: {result}")
             

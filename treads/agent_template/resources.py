@@ -1,15 +1,18 @@
 import os
 from fastmcp import FastMCP
+from treads.types import NanobotAgent
 from treads.views.handlers import ResourceHandlers
 from treads.views.types import HTMLTemplate
-from treads.nanobot.client import NanobotClient  # Ensure this is imported correctly
+from treads.nanobot.client import NanobotAgentClient  # Ensure this is imported correctly
 
-def register_resources(mcp: FastMCP):
+
+def register_resources(mcp: FastMCP, agent: NanobotAgent):
     """Register all UI resources - this is the only public interface."""
     
     # Configure handler with this agent's template directory
     template_dir = os.path.join(os.path.dirname(__file__), "templates")
     handlers = ResourceHandlers(template_dir)
+    agent = agent
     
     @mcp.resource("ui://{name}/{page}.html", mime_type="application/json",
                   description="Returns the HTML for a specific {name} page.")
@@ -33,7 +36,7 @@ def register_resources(mcp: FastMCP):
 
     @mcp.resource("ui://{name}/resource_templates/{template_name}/form", mime_type="application/json")
     async def {name}_ui_resource_template_form(template_name: str):
-        async with NanobotClient() as client:
+        async with NanobotAgentClient() as client:
             templates = await client.list_resource_templates()
             template = next((t for t in templates if t.name == template_name), None)
         if not template:

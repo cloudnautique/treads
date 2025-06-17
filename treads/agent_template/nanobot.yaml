@@ -1,20 +1,20 @@
 publish:
   tools: [{name}]
-  prompts: [{name}_tools]
-  resources: [{name}_tools]
-  resourceTemplates: [{name}_tools]
+  prompts: [{name}_mcp]
+  resources: [{name}_mcp]
+  resourceTemplates: [{name}_mcp]
 
 agents:
   {name}:
     model: gpt-4.1
     instructions: |-
       You are a {name} agent. Describe what you do here.
-    tools: [{name}_tools]
+    tools: [{name}_mcp]
 
 mcpServers:
-  {name}_tools:
+  {name}_mcp:
     command: "uv"
     args:
       - "run"
       - "--active"
-      - "tools.py"
+      - "agent.py"
