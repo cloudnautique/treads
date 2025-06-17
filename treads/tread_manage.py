@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import os
 
+AGENTS_DIR = Path.cwd() / "agents"
 TEMPLATE_DIR = Path(__file__).parent / "project_template"
 
 
@@ -42,7 +43,7 @@ def create_project():
     dirs = ["agents", "static"]
     for d in dirs:
         (root / d).mkdir(parents=True, exist_ok=True)
-    # Ensure agents/__init__.py is created in the project directory
+   # Ensure agents/__init__.py is created in the project directory
     agents_init = root / "agents" / "__init__.py"
     if not agents_init.exists():
         agents_init.parent.mkdir(parents=True, exist_ok=True)

@@ -3,9 +3,9 @@ import logging
 from fastmcp import FastMCP
 from treads.types import NanobotAgent
 
-from .prompts import register_prompts
-from .resources import register_resources
-from .tools import register_tools
+from prompts import register_prompts
+from resources import register_resources
+from tools import register_tools
 
 logger = logging.getLogger(__name__)
 
