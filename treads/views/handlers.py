@@ -28,7 +28,8 @@ class ResourceHandlers:
         """Render a template from a string using the global Jinja2 environment."""
         jinja_env = get_jinja_env().env  # Use the underlying Jinja2 Environment
         template = jinja_env.from_string(template_string)
-        return template.render(context or {})
+        html = template.render(context or {})
+        return HTMLTextType(htmlString=html).model_dump()
 
     def get_page(self, page: str):
         """Render a simple app page."""
