@@ -23,6 +23,13 @@ class ResourceHandlers:
         jinja_env = get_jinja_env()
         return jinja_env.render_template(template_name, context, self.template_dir)
     
+    @staticmethod
+    def render_template_from_string(template_string: str, context=None):
+        """Render a template from a string using the global Jinja2 environment."""
+        jinja_env = get_jinja_env().env  # Use the underlying Jinja2 Environment
+        template = jinja_env.from_string(template_string)
+        return template.render(context or {})
+
     def get_page(self, page: str):
         """Render a simple app page."""
         html = self.render_template(f"{page}")
