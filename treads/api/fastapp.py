@@ -9,3 +9,8 @@ def load_default_app_config(agents=None):
     app.include_router(TreadRouter)
 
     return app
+
+def create_base_app(agents=None):
+    lifespan = create_lifespan(agents=agents)
+    app = FastAPI(lifespan=lifespan)
+    return app

@@ -1,5 +1,5 @@
 publish:
-  tools: [{name}]
+  tools: [{name},{name}_mcp/render_template_from_string_tool]
   prompts: [{name}_mcp]
   resources: [{name}_mcp]
   resourceTemplates: [{name}_mcp]
@@ -9,7 +9,6 @@ agents:
     model: gpt-4.1
     instructions: |-
       You are a {name} agent. Describe what you do here.
-    tools: [{name}_mcp]
 
 mcpServers:
   {name}_mcp:

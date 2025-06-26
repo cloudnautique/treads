@@ -21,3 +21,14 @@ class HTMLTemplate(BaseModel):
                 "contextSchema": self.context_schema
             }
         }
+
+class HTMLExternalType(BaseModel):
+    """Pydantic model to represent external HTML content."""
+    iframeUrl: str = Field(..., alias="iframeUrl")
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "content": {
+                "type": "externalUrl",
+                "iframeUrl": self.iframeUrl
+            }
+        }
